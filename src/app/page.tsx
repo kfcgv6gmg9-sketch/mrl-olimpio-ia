@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { AppNav } from "@/components/AppNav";
 import { AuthGate } from "@/components/AuthGate";
+import { useCurrentAccess } from "@/hooks/useCurrentAccess";
+import { AppModule, canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
 
 type DashboardIndicators = {
@@ -25,31 +28,37 @@ const initialIndicators: DashboardIndicators = {
 
 const modules = [
   {
+    id: "agenda",
     title: "Agenda de Servicos",
     description: "Registro inicial com data, cliente e observacao.",
     href: "/agenda"
   },
   {
+    id: "diario",
     title: "Diario Operacional",
     description: "Registro inicial com data, tecnico, cliente, servico realizado e observacao.",
     href: "/diario"
   },
   {
+    id: "relatorios",
     title: "Relatorios",
     description: "Base para filtros por data, tecnico e periodo.",
     href: "/relatorios"
   },
   {
+    id: "veiculos",
     title: "Veiculos",
     description: "Controle de despesas operacionais por placa, veiculo e tipo.",
     href: "/veiculos"
   },
   {
+    id: "usuarios",
     title: "Administracao > Usuarios",
     description: "Gestao de usuarios, perfis e status de acesso.",
     href: "/administracao/usuarios"
   },
   {
+    id: "auditoria",
     title: "Administracao > Auditoria",
     description: "Historico de alteracoes por usuario, modulo e periodo.",
     href: "/administracao/auditoria"
@@ -146,6 +155,7 @@ export default function HomePage() {
 }
 
 function HomeDashboard() {
+  const { email, metadata } = useCurrentAccess();
   const [indicators, setIndicators] = useState<DashboardIndicators>(initialIndicators);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState("");
@@ -154,6 +164,7 @@ function HomeDashboard() {
   const [selectedForecast, setSelectedForecast] = useState<CityForecast | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [weatherError, setWeatherError] = useState("");
+  const visibleModules = modules.filter((module) => canAccessModule(email, metadata, module.id as AppModule));
 
   const loadDashboard = useCallback(async () => {
     const today = formatDate(new Date());
@@ -269,13 +280,7 @@ function HomeDashboard() {
           <h1>MRL Gestao</h1>
           <p>Gestao Operacional</p>
         </div>
-        <nav className="nav" aria-label="Navegacao principal">
-          {modules.map((module) => (
-            <Link href={module.href} key={module.href}>
-              {module.title}
-            </Link>
-          ))}
-        </nav>
+        <AppNav />
       </header>
 
       <section className="panel dashboard-panel" aria-label="Dashboard inicial">
@@ -301,7 +306,7 @@ function HomeDashboard() {
 
       <section className="panel">
         <div className="module-grid">
-          {modules.map((module) => (
+          {visibleModules.map((module) => (
             <article className="module" key={module.href}>
               <h2>{module.title}</h2>
               <p>{module.description}</p>

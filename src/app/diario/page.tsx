@@ -1,9 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { AppNav } from "@/components/AppNav";
 import { AuthGate } from "@/components/AuthGate";
+import { PermissionGate } from "@/components/PermissionGate";
+import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { logAudit } from "@/lib/audit";
+import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
 import { AgendaServico, DiarioOperacional } from "@/types/database";
 
@@ -53,10 +56,14 @@ export default function DiarioPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const { email, loading: accessLoading, metadata } = useCurrentAccess();
+  const canAccessDiario = canAccessModule(email, metadata, "diario");
 
   useEffect(() => {
-    loadRecords();
-  }, []);
+    if (!accessLoading && canAccessDiario) {
+      loadRecords();
+    }
+  }, [accessLoading, canAccessDiario]);
 
   async function loadRecords() {
     setLoading(true);
@@ -231,18 +238,16 @@ export default function DiarioPage() {
     <main className="app-shell">
       <div className="app-container">
         <AuthGate>
-          <header className="topbar">
-            <div className="brand">
-              <h1>Diario Operacional</h1>
-              <p>Registro interno de servicos realizados.</p>
-            </div>
-            <nav className="nav" aria-label="Navegacao">
-              <Link href="/">Inicio</Link>
-              <Link href="/agenda">Agenda</Link>
-            </nav>
-          </header>
+          <PermissionGate module="diario">
+            <header className="topbar">
+              <div className="brand">
+                <h1>Diario Operacional</h1>
+                <p>Registro interno de servicos realizados.</p>
+              </div>
+              <AppNav />
+            </header>
 
-          <section className="work-layout">
+            <section className="work-layout">
             <form className="panel form-grid" onSubmit={handleSubmit}>
               <h2>{editingId ? "Editar registro" : "Novo registro"}</h2>
 
@@ -417,7 +422,8 @@ export default function DiarioPage() {
                 })}
               </div>
             </section>
-          </section>
+            </section>
+          </PermissionGate>
         </AuthGate>
       </div>
     </main>

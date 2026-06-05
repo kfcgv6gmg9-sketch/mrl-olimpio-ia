@@ -1,9 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { AppNav } from "@/components/AppNav";
 import { AuthGate } from "@/components/AuthGate";
+import { PermissionGate } from "@/components/PermissionGate";
+import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { logAudit } from "@/lib/audit";
+import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
 import { DespesaVeiculo } from "@/types/database";
 
@@ -54,6 +57,8 @@ export default function VeiculosPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const { email, loading: accessLoading, metadata } = useCurrentAccess();
+  const canAccessVeiculos = canAccessModule(email, metadata, "veiculos");
 
   const loadRecords = useCallback(async (currentFilters: VehicleFilters) => {
     setLoading(true);
@@ -97,8 +102,10 @@ export default function VeiculosPage() {
   }, []);
 
   useEffect(() => {
-    loadRecords(initialFilters);
-  }, [loadRecords]);
+    if (!accessLoading && canAccessVeiculos) {
+      loadRecords(initialFilters);
+    }
+  }, [accessLoading, canAccessVeiculos, loadRecords]);
 
   const totals = useMemo(() => {
     const initialTotals = expenseTypes.reduce<Record<ExpenseType, number>>((accumulator, type) => {
@@ -237,20 +244,16 @@ export default function VeiculosPage() {
     <main className="app-shell">
       <div className="app-container">
         <AuthGate>
-          <header className="topbar">
-            <div className="brand">
-              <h1>Veiculos</h1>
-              <p>Controle de despesas operacionais por veiculo.</p>
-            </div>
-            <nav className="nav" aria-label="Navegacao">
-              <Link href="/">Inicio</Link>
-              <Link href="/agenda">Agenda</Link>
-              <Link href="/diario">Diario</Link>
-              <Link href="/relatorios">Relatorios</Link>
-            </nav>
-          </header>
+          <PermissionGate module="veiculos">
+            <header className="topbar">
+              <div className="brand">
+                <h1>Veiculos</h1>
+                <p>Controle de despesas operacionais por veiculo.</p>
+              </div>
+              <AppNav />
+            </header>
 
-          <section className="metric-grid" aria-label="Dashboard de despesas">
+            <section className="metric-grid" aria-label="Dashboard de despesas">
             {expenseTypes.map((type) => (
               <article className="metric-card" key={type}>
                 <span>Total {type}</span>
@@ -261,9 +264,9 @@ export default function VeiculosPage() {
               <span>Total Geral</span>
               <strong>{formatCurrency(totals.total)}</strong>
             </article>
-          </section>
+            </section>
 
-          <section className="work-layout">
+            <section className="work-layout">
             <form className="panel form-grid" onSubmit={handleSubmit}>
               <h2>{editingId ? "Editar despesa" : "Nova despesa"}</h2>
 
@@ -451,7 +454,8 @@ export default function VeiculosPage() {
                 ))}
               </div>
             </section>
-          </section>
+            </section>
+          </PermissionGate>
         </AuthGate>
       </div>
     </main>

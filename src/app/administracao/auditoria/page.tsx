@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Session } from "@supabase/supabase-js";
+import { AppNav } from "@/components/AppNav";
 import { AuthGate } from "@/components/AuthGate";
 import { hasAdminAccess } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
@@ -114,10 +114,7 @@ export default function AuditoriaPage() {
               <h1>Auditoria</h1>
               <p>Historico de alteracoes realizadas no sistema.</p>
             </div>
-            <nav className="nav" aria-label="Navegacao">
-              <Link href="/">Inicio</Link>
-              <Link href="/administracao/usuarios">Usuarios</Link>
-            </nav>
+            <AppNav />
           </header>
 
           {!isAdmin ? (

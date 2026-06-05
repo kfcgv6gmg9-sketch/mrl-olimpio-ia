@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Session } from "@supabase/supabase-js";
+import { AppNav } from "@/components/AppNav";
 import { AuthGate } from "@/components/AuthGate";
 import { hasAdminAccess } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
@@ -185,12 +185,7 @@ export default function UsuariosPage() {
               <h1>Usuários</h1>
               <p>Administração de acessos do Supabase.</p>
             </div>
-            <nav className="nav" aria-label="Navegacao">
-              <Link href="/">Inicio</Link>
-              <Link href="/administracao/auditoria">Auditoria</Link>
-              <Link href="/agenda">Agenda</Link>
-              <Link href="/diario">Diario</Link>
-            </nav>
+            <AppNav />
           </header>
 
           {!isAdmin ? (

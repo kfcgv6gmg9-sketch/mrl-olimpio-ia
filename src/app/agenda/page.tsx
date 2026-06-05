@@ -1,9 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { AppNav } from "@/components/AppNav";
 import { AuthGate } from "@/components/AuthGate";
+import { PermissionGate } from "@/components/PermissionGate";
+import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { logAudit } from "@/lib/audit";
+import { canAccessModule, canEditAgenda } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
 import { AgendaServico } from "@/types/database";
 
@@ -40,10 +43,15 @@ export default function AgendaPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const { email, loading: accessLoading, metadata } = useCurrentAccess();
+  const canAccessAgenda = canAccessModule(email, metadata, "agenda");
+  const canManageAgenda = canEditAgenda(email, metadata);
 
   useEffect(() => {
-    loadRecords();
-  }, []);
+    if (!accessLoading && canAccessAgenda) {
+      loadRecords();
+    }
+  }, [accessLoading, canAccessAgenda]);
 
   async function loadRecords() {
     setLoading(true);
@@ -69,6 +77,12 @@ export default function AgendaPage() {
     setSaving(true);
     setMessage("");
     setError("");
+
+    if (!canManageAgenda) {
+      setError("Voce nao tem permissao para alterar a agenda.");
+      setSaving(false);
+      return;
+    }
 
     if (editingId) {
       const currentRecord = records.find((record) => record.id === editingId);
@@ -111,6 +125,12 @@ export default function AgendaPage() {
   }
 
   function handleEdit(record: AgendaServico) {
+    if (!canManageAgenda) {
+      setMessage("");
+      setError("Voce nao tem permissao para alterar a agenda.");
+      return;
+    }
+
     if (isAgendaLocked(record)) {
       setMessage("");
       setError("Registro bloqueado ou cancelado nao pode ser editado.");
@@ -138,6 +158,12 @@ export default function AgendaPage() {
   }
 
   async function handleDelete(id: string) {
+    if (!canManageAgenda) {
+      setMessage("");
+      setError("Voce nao tem permissao para excluir registros da agenda.");
+      return;
+    }
+
     const confirmed = window.confirm("Excluir este registro da agenda?");
 
     if (!confirmed) {
@@ -166,152 +192,161 @@ export default function AgendaPage() {
     <main className="app-shell">
       <div className="app-container">
         <AuthGate>
-          <header className="topbar">
-            <div className="brand">
-              <h1>Agenda de Servicos</h1>
-              <p>Caderneta digital interna para servicos por data.</p>
-            </div>
-            <nav className="nav" aria-label="Navegacao">
-              <Link href="/">Inicio</Link>
-              <Link href="/diario">Diario</Link>
-            </nav>
-          </header>
+          <PermissionGate module="agenda">
+            <header className="topbar">
+              <div className="brand">
+                <h1>Agenda de Servicos</h1>
+                <p>Caderneta digital interna para servicos por data.</p>
+              </div>
+              <AppNav />
+            </header>
 
-          <section className="work-layout">
-            <form className="panel form-grid" onSubmit={handleSubmit}>
-              <h2>{editingId ? "Editar registro" : "Novo registro"}</h2>
+            <section className="work-layout">
+              {canManageAgenda ? (
+                <form className="panel form-grid" onSubmit={handleSubmit}>
+                  <h2>{editingId ? "Editar registro" : "Novo registro"}</h2>
 
-              <label>
-                Data
-                <input
-                  required
-                  type="date"
-                  value={form.data}
-                  onChange={(event) => setForm({ ...form, data: event.target.value })}
-                />
-              </label>
+                  <label>
+                    Data
+                    <input
+                      required
+                      type="date"
+                      value={form.data}
+                      onChange={(event) => setForm({ ...form, data: event.target.value })}
+                    />
+                  </label>
 
-              <label>
-                Cliente
-                <input
-                  required
-                  type="text"
-                  value={form.cliente}
-                  onChange={(event) => setForm({ ...form, cliente: event.target.value })}
-                />
-              </label>
+                  <label>
+                    Cliente
+                    <input
+                      required
+                      type="text"
+                      value={form.cliente}
+                      onChange={(event) => setForm({ ...form, cliente: event.target.value })}
+                    />
+                  </label>
 
-              <label>
-                Cidade
-                <input
-                  type="text"
-                  value={form.cidade}
-                  onChange={(event) => setForm({ ...form, cidade: event.target.value })}
-                />
-              </label>
+                  <label>
+                    Cidade
+                    <input
+                      type="text"
+                      value={form.cidade}
+                      onChange={(event) => setForm({ ...form, cidade: event.target.value })}
+                    />
+                  </label>
 
-              <label>
-                Situacao do Agendamento
-                <select
-                  required
-                  value={form.situacao_agendamento}
-                  onChange={(event) => setForm({ ...form, situacao_agendamento: event.target.value })}
-                >
-                  {situacoesAgendamento.map((situacao) => (
-                    <option key={situacao} value={situacao}>
-                      {situacao}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <label>
+                    Situacao do Agendamento
+                    <select
+                      required
+                      value={form.situacao_agendamento}
+                      onChange={(event) => setForm({ ...form, situacao_agendamento: event.target.value })}
+                    >
+                      {situacoesAgendamento.map((situacao) => (
+                        <option key={situacao} value={situacao}>
+                          {situacao}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-              <label>
-                Status do Agendamento
-                <select
-                  required
-                  value={form.status_agendamento}
-                  onChange={(event) => setForm({ ...form, status_agendamento: event.target.value })}
-                >
-                  {statusAgendamento.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <label>
+                    Status do Agendamento
+                    <select
+                      required
+                      value={form.status_agendamento}
+                      onChange={(event) => setForm({ ...form, status_agendamento: event.target.value })}
+                    >
+                      {statusAgendamento.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-              <label>
-                Observacao
-                <textarea
-                  rows={4}
-                  value={form.observacao}
-                  onChange={(event) => setForm({ ...form, observacao: event.target.value })}
-                />
-              </label>
+                  <label>
+                    Observacao
+                    <textarea
+                      rows={4}
+                      value={form.observacao}
+                      onChange={(event) => setForm({ ...form, observacao: event.target.value })}
+                    />
+                  </label>
 
-              {error ? <p className="error-text">{error}</p> : null}
-              {message ? <p className="success-text">{message}</p> : null}
+                  {error ? <p className="error-text">{error}</p> : null}
+                  {message ? <p className="success-text">{message}</p> : null}
 
-              <div className="button-row">
-                <button className="primary-button" disabled={saving} type="submit">
-                  {saving ? "Salvando..." : editingId ? "Atualizar" : "Salvar"}
-                </button>
-                {editingId ? (
-                  <button className="secondary-button" onClick={handleCancelEdit} type="button">
-                    Cancelar
+                  <div className="button-row">
+                    <button className="primary-button" disabled={saving} type="submit">
+                      {saving ? "Salvando..." : editingId ? "Atualizar" : "Salvar"}
+                    </button>
+                    {editingId ? (
+                      <button className="secondary-button" onClick={handleCancelEdit} type="button">
+                        Cancelar
+                      </button>
+                    ) : null}
+                  </div>
+                </form>
+              ) : (
+                <section className="panel">
+                  <p className="status-text">Agenda disponivel apenas para visualizacao.</p>
+                </section>
+              )}
+
+              <section className="panel">
+                <div className="section-heading">
+                  <h2>Registros cadastrados</h2>
+                  <button className="secondary-button" onClick={loadRecords} type="button">
+                    Atualizar
                   </button>
+                </div>
+
+                {loading ? <p className="status-text">Carregando registros...</p> : null}
+
+                {!loading && records.length === 0 ? (
+                  <p className="status-text">Nenhum registro cadastrado.</p>
                 ) : null}
-              </div>
-            </form>
 
-            <section className="panel">
-              <div className="section-heading">
-                <h2>Registros cadastrados</h2>
-                <button className="secondary-button" onClick={loadRecords} type="button">
-                  Atualizar
-                </button>
-              </div>
+                {!canManageAgenda && error ? <p className="error-text">{error}</p> : null}
 
-              {loading ? <p className="status-text">Carregando registros...</p> : null}
+                <div className="record-list">
+                  {records.map((record) => {
+                    const locked = isAgendaLocked(record);
 
-              {!loading && records.length === 0 ? (
-                <p className="status-text">Nenhum registro cadastrado.</p>
-              ) : null}
-
-              <div className="record-list">
-                {records.map((record) => {
-                  const locked = isAgendaLocked(record);
-
-                  return (
-                    <article className="record-card" key={record.id}>
-                      <div>
-                        <strong>{record.cliente}</strong>
-                        <span>{record.data}</span>
-                        <span>Cidade: {record.cidade ?? "Nao informado"}</span>
-                        <span>Situacao: {record.situacao_agendamento ?? "Nao informado"}</span>
-                        <span>Status: {record.status_agendamento ?? "Nao informado"}</span>
-                        {record.bloqueado ? <span>Bloqueado: Sim</span> : null}
-                        {record.observacao ? <p>{record.observacao}</p> : null}
-                      </div>
-                      <div className="button-row">
-                        <button
-                          className="secondary-button"
-                          disabled={locked}
-                          onClick={() => handleEdit(record)}
-                          type="button"
-                        >
-                          Editar
-                        </button>
-                        <button className="danger-button" onClick={() => handleDelete(record.id)} type="button">
-                          Excluir
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                    return (
+                      <article className="record-card" key={record.id}>
+                        <div>
+                          <strong>{record.cliente}</strong>
+                          <span>{record.data}</span>
+                          <span>Cidade: {record.cidade ?? "Nao informado"}</span>
+                          <span>Situacao: {record.situacao_agendamento ?? "Nao informado"}</span>
+                          <span>Status: {record.status_agendamento ?? "Nao informado"}</span>
+                          {record.bloqueado ? <span>Bloqueado: Sim</span> : null}
+                          {record.observacao ? <p>{record.observacao}</p> : null}
+                        </div>
+                        {canManageAgenda ? (
+                          <div className="button-row">
+                            <button
+                              className="secondary-button"
+                              disabled={locked}
+                              onClick={() => handleEdit(record)}
+                              type="button"
+                            >
+                              Editar
+                            </button>
+                            <button className="danger-button" onClick={() => handleDelete(record.id)} type="button">
+                              Excluir
+                            </button>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
             </section>
-          </section>
+          </PermissionGate>
         </AuthGate>
       </div>
     </main>

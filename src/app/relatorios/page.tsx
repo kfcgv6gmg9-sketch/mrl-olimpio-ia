@@ -1,8 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { AppNav } from "@/components/AppNav";
 import { AuthGate } from "@/components/AuthGate";
+import { PermissionGate } from "@/components/PermissionGate";
+import { useCurrentAccess } from "@/hooks/useCurrentAccess";
+import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
 import { AgendaServico, DiarioOperacional } from "@/types/database";
 
@@ -43,6 +46,8 @@ export default function RelatoriosPage() {
   const [loadingDiario, setLoadingDiario] = useState(true);
   const [agendaError, setAgendaError] = useState("");
   const [diarioError, setDiarioError] = useState("");
+  const { email, loading: accessLoading, metadata } = useCurrentAccess();
+  const canAccessRelatorios = canAccessModule(email, metadata, "relatorios");
 
   const loadAgenda = useCallback(async (filters: AgendaFilters) => {
     setLoadingAgenda(true);
@@ -123,9 +128,11 @@ export default function RelatoriosPage() {
   }, []);
 
   useEffect(() => {
-    loadAgenda(initialAgendaFilters);
-    loadDiario(initialDiarioFilters);
-  }, [loadAgenda, loadDiario]);
+    if (!accessLoading && canAccessRelatorios) {
+      loadAgenda(initialAgendaFilters);
+      loadDiario(initialDiarioFilters);
+    }
+  }, [accessLoading, canAccessRelatorios, loadAgenda, loadDiario]);
 
   function handleAgendaFilter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -207,19 +214,16 @@ export default function RelatoriosPage() {
     <main className="app-shell">
       <div className="app-container">
         <AuthGate>
-          <header className="topbar">
-            <div className="brand">
-              <h1>Relatorios</h1>
-              <p>Consultas internas por data, periodo e tecnico.</p>
-            </div>
-            <nav className="nav" aria-label="Navegacao">
-              <Link href="/">Inicio</Link>
-              <Link href="/agenda">Agenda</Link>
-              <Link href="/diario">Diario</Link>
-            </nav>
-          </header>
+          <PermissionGate module="relatorios">
+            <header className="topbar">
+              <div className="brand">
+                <h1>Relatorios</h1>
+                <p>Consultas internas por data, periodo e tecnico.</p>
+              </div>
+              <AppNav />
+            </header>
 
-          <section className="metric-grid" aria-label="Dashboard">
+            <section className="metric-grid" aria-label="Dashboard">
             <article className="metric-card">
               <span>Total de servicos agendados</span>
               <strong>{agendaRecords.length}</strong>
@@ -228,9 +232,9 @@ export default function RelatoriosPage() {
               <span>Total de registros do diario</span>
               <strong>{diarioRecords.length}</strong>
             </article>
-          </section>
+            </section>
 
-          <section className="panel report-panel" aria-label="Contadores por situacao">
+            <section className="panel report-panel" aria-label="Contadores por situacao">
             <h2>Contadores por Situacao</h2>
             <div className="situation-grid">
               {Object.entries(agendaSituationCounts).map(([label, total]) => (
@@ -246,9 +250,9 @@ export default function RelatoriosPage() {
                 </article>
               ))}
             </div>
-          </section>
+            </section>
 
-          <section className="report-grid">
+            <section className="report-grid">
             <article className="panel report-panel">
               <div className="section-heading">
                 <h2>Relatorio Agenda</h2>
@@ -433,7 +437,8 @@ export default function RelatoriosPage() {
                 ))}
               </div>
             </article>
-          </section>
+            </section>
+          </PermissionGate>
         </AuthGate>
       </div>
     </main>
