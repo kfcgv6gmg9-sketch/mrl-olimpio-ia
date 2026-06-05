@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { AuthGate } from "@/components/AuthGate";
+import { Logo } from "@/components/Logo";
 import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { AppModule, canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
@@ -277,6 +278,7 @@ function HomeDashboard() {
     <>
       <header className="topbar">
         <div className="brand">
+          <Logo />
           <h1>MRL Gestao</h1>
           <p>Gestao Operacional</p>
         </div>

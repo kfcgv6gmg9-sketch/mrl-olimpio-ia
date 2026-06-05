@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 import { AppModule, appModules, canAccessModule } from "@/lib/accessControl";
 import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 
@@ -25,6 +26,9 @@ export function AppNav({ includeHome = true }: AppNavProps) {
 
   return (
     <nav className="nav" aria-label="Navegacao">
+      <div className="nav-logo-slot">
+        <Logo context="menu" showText={false} />
+      </div>
       {visibleModules.map((module) => (
         <Link href={module.href} key={module.id}>
           {module.title}

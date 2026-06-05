@@ -3,7 +3,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "MRL Gestão",
-  description: "Sistema operacional simples para uso pessoal do Murilo"
+  description: "Sistema operacional simples para uso pessoal do Murilo",
+  icons: {
+    icon: "/favicon.svg"
+  }
 };
 
 export default function RootLayout({

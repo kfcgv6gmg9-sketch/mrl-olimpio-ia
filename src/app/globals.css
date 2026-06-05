@@ -1,11 +1,15 @@
 :root {
-  --background: #f7f8fa;
-  --foreground: #172033;
+  --background: #f3f4f6;
+  --foreground: #111827;
   --muted: #667085;
   --panel: #ffffff;
   --border: #d8dee8;
-  --primary: #146c5f;
-  --primary-hover: #0f5a50;
+  --primary: #1e3a5f;
+  --primary-hover: #162b47;
+  --brand-blue: #1e3a5f;
+  --brand-black: #111827;
+  --brand-white: #ffffff;
+  --brand-gray: #f3f4f6;
 }
 
 * {
@@ -59,6 +63,57 @@ select {
   gap: 4px;
 }
 
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--brand-blue);
+  color: var(--brand-white);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.logo-text {
+  display: grid;
+  gap: 2px;
+}
+
+.logo-text strong {
+  color: var(--brand-black);
+  font-size: 15px;
+  line-height: 1.1;
+}
+
+.logo-text span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.logo-login {
+  margin-bottom: 16px;
+}
+
+.logo-login .logo-mark {
+  width: 56px;
+  height: 56px;
+  font-size: 15px;
+}
+
+.logo-menu .logo-mark {
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+}
+
 .brand h1 {
   margin: 0;
   font-size: 24px;
@@ -74,7 +129,14 @@ select {
 .nav {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.nav-logo-slot {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
 }
 
 .nav a {
@@ -94,6 +156,7 @@ select {
 
 .auth-panel {
   margin-top: 32px;
+  width: min(100%, 420px);
 }
 
 .muted-text,
@@ -228,8 +291,8 @@ select {
 }
 
 .success-text {
-  background: #edf8f4;
-  color: #0b684f;
+  background: var(--brand-gray);
+  color: var(--brand-blue);
 }
 
 .record-list {

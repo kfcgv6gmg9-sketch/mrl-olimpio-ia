@@ -2,6 +2,7 @@
 
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { Session } from "@supabase/supabase-js";
+import { Logo } from "@/components/Logo";
 import { hasActiveSystemAccess } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
 import { UserMetadata } from "@/types/users";
@@ -74,6 +75,7 @@ export function AuthGate({ children }: AuthGateProps) {
   if (!session) {
     return (
       <section className="panel auth-panel">
+        <Logo context="login" />
         <h1>Acesso ao MRL Gestão</h1>
 
         <form className="form-grid" onSubmit={handleLogin}>
