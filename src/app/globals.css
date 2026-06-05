@@ -291,6 +291,42 @@ select {
   line-height: 1;
 }
 
+.dashboard-panel {
+  margin-bottom: 16px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.dashboard-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dashboard-card h2 {
+  margin: 8px 0 0;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.dashboard-card strong {
+  display: block;
+  margin-top: 12px;
+  font-size: 30px;
+  line-height: 1;
+}
+
 .situation-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -548,6 +584,7 @@ select {
   }
 
   .metric-grid,
+  .dashboard-grid,
   .filter-grid,
   .situation-grid {
     grid-template-columns: 1fr;
