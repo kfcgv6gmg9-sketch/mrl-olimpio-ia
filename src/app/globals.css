@@ -1,0 +1,564 @@
+:root {
+  --background: #f7f8fa;
+  --foreground: #172033;
+  --muted: #667085;
+  --panel: #ffffff;
+  --border: #d8dee8;
+  --primary: #146c5f;
+  --primary-hover: #0f5a50;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.app-container {
+  width: min(100%, 1040px);
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0;
+}
+
+.brand {
+  display: grid;
+  gap: 4px;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.brand p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nav a {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 20px;
+}
+
+.auth-panel {
+  margin-top: 32px;
+}
+
+.muted-text,
+.status-text {
+  color: var(--muted);
+}
+
+.session-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.work-layout {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.form-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.form-grid h2,
+.section-heading h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.form-grid input,
+.form-grid textarea,
+.form-grid select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--foreground);
+  padding: 10px 12px;
+  font-weight: 400;
+}
+
+.form-grid textarea {
+  resize: vertical;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button {
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.primary-button {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.primary-button:hover {
+  background: var(--primary-hover);
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.secondary-button {
+  border-color: var(--border);
+  background: #ffffff;
+  color: var(--foreground);
+}
+
+.danger-button {
+  border-color: #f1b7b7;
+  background: #fff5f5;
+  color: #a12020;
+}
+
+.error-text,
+.success-text {
+  margin: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.error-text {
+  background: #fff1f1;
+  color: #9f1d1d;
+}
+
+.success-text {
+  background: #edf8f4;
+  color: #0b684f;
+}
+
+.record-list {
+  display: grid;
+  gap: 10px;
+}
+
+.record-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.record-card strong,
+.record-card span,
+.record-card p {
+  display: block;
+}
+
+.record-card span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.record-card p {
+  margin: 8px 0 0;
+  color: var(--foreground);
+  line-height: 1.5;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.metric-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 16px;
+}
+
+.metric-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.metric-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.situation-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.situation-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.situation-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.situation-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+}
+
+.report-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.report-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.filter-grid label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.filter-grid input,
+.filter-grid select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--foreground);
+  padding: 10px 12px;
+  font-weight: 400;
+}
+
+.report-card {
+  grid-template-columns: 1fr;
+}
+
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.module {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.module h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.module p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.weather-panel {
+  margin-top: 16px;
+}
+
+.weather-select {
+  display: grid;
+  gap: 6px;
+  min-width: 260px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.weather-select select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--foreground);
+  padding: 10px 12px;
+  font-weight: 400;
+}
+
+.weather-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.weather-city-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.weather-city-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.weather-city-heading h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.weather-city-heading span {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.weather-current-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.weather-current-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.weather-current-item span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.weather-current-item strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+}
+
+.weather-day-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.weather-day {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.weather-day strong,
+.weather-day span,
+.weather-day p {
+  display: block;
+}
+
+.weather-day > span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.weather-day p {
+  margin: 8px 0;
+}
+
+.rain-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+.traffic-light {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  flex: 0 0 14px;
+}
+
+.traffic-green {
+  background: #1f9d55;
+}
+
+.traffic-yellow {
+  background: #d89a00;
+}
+
+.traffic-red {
+  background: #c62828;
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 16px;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .nav {
+    width: 100%;
+  }
+
+  .nav a {
+    flex: 1 1 100%;
+  }
+
+  .module-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .weather-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .weather-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .weather-current-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-grid,
+  .filter-grid,
+  .situation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .session-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .work-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .section-heading,
+  .record-card {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .button-row button,
+  .section-heading button {
+    flex: 1 1 auto;
+  }
+}
