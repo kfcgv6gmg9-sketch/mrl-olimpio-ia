@@ -178,6 +178,24 @@ export default function DiarioPage() {
     setError("");
   }
 
+  function handleAgendaChange(agendamentoId: string) {
+    const selectedAgenda = agendaRecords.find((record) => record.id === agendamentoId);
+
+    if (!selectedAgenda) {
+      setForm({ ...form, agendamento_id: agendamentoId });
+      return;
+    }
+
+    setForm({
+      ...form,
+      agendamento_id: agendamentoId,
+      cliente: selectedAgenda.cliente,
+      cidade: selectedAgenda.cidade ?? "",
+      situacao_atendimento: selectedAgenda.situacao_agendamento ?? "",
+      servico_realizado: selectedAgenda.observacao ?? ""
+    });
+  }
+
   async function handleDelete(id: string) {
     const confirmed = window.confirm("Excluir este registro do diario?");
 
@@ -284,7 +302,7 @@ export default function DiarioPage() {
                 Agendamento Vinculado
                 <select
                   value={form.agendamento_id}
-                  onChange={(event) => setForm({ ...form, agendamento_id: event.target.value })}
+                  onChange={(event) => handleAgendaChange(event.target.value)}
                 >
                   <option value="">Sem agendamento vinculado</option>
                   {agendaRecords.map((record) => (
