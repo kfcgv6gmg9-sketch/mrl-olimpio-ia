@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Session } from "@supabase/supabase-js";
 import { AuthGate } from "@/components/AuthGate";
+import { hasAdminAccess } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
 import { Auditoria } from "@/types/database";
 import { UserMetadata } from "@/types/users";
@@ -32,7 +33,7 @@ export default function AuditoriaPage() {
   const [error, setError] = useState("");
 
   const metadata = session?.user.user_metadata as UserMetadata | undefined;
-  const isAdmin = metadata?.perfil === "Administrador" && metadata.ativo !== false;
+  const isAdmin = hasAdminAccess(session?.user.email, metadata);
 
   const loadRecords = useCallback(async (currentFilters: AuditFilters) => {
     setLoading(true);

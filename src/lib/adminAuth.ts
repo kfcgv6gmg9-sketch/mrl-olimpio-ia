@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasAdminAccess } from "@/lib/accessControl";
 import { createSupabaseAdminClient } from "@/lib/supabaseAdmin";
 import { UserMetadata, UserProfile, userProfiles } from "@/types/users";
 
@@ -42,10 +43,8 @@ export async function requireAdmin(request: NextRequest) {
   }
 
   const metadata = data.user.user_metadata as UserMetadata;
-  const isAdmin = metadata.perfil === "Administrador";
-  const isActive = metadata.ativo !== false;
 
-  if (!isAdmin || !isActive) {
+  if (!hasAdminAccess(data.user.email, metadata)) {
     return { actorEmail: "", error: jsonError("Acesso permitido apenas para Administrador ativo.", 403), supabase: null };
   }
 

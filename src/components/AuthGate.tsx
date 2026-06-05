@@ -2,8 +2,9 @@
 
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { Session } from "@supabase/supabase-js";
+import { hasActiveSystemAccess } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
-import { UserMetadata, userProfiles } from "@/types/users";
+import { UserMetadata } from "@/types/users";
 
 type AuthGateProps = {
   children: ReactNode;
@@ -20,9 +21,8 @@ export function AuthGate({ children }: AuthGateProps) {
   useEffect(() => {
     async function applySession(currentSession: Session | null) {
       const metadata = currentSession?.user.user_metadata as UserMetadata | undefined;
-      const hasValidProfile = metadata?.perfil ? userProfiles.some((profile) => profile === metadata.perfil) : false;
 
-      if (currentSession && (!hasValidProfile || metadata?.ativo === false)) {
+      if (currentSession && !hasActiveSystemAccess(currentSession.user.email, metadata)) {
         setError("Usuario sem acesso ativo. Solicite acesso ao administrador.");
         await supabase.auth.signOut();
         setSession(null);
