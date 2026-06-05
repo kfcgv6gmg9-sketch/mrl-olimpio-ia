@@ -2,8 +2,11 @@ export type AgendaServico = {
   id: string;
   data: string;
   cliente: string;
+  cidade: string | null;
   observacao: string | null;
-  situacao_agendamento: "Realizado" | "Cancelado" | null;
+  situacao_agendamento: "Serviço Técnico" | "Retorno" | "Garantia" | null;
+  status_agendamento: "Agendado" | "Reagendado" | "Cancelado" | null;
+  bloqueado: boolean | null;
   created_at: string;
   updated_at: string;
 };
@@ -13,9 +16,13 @@ export type DiarioOperacional = {
   data: string;
   tecnico: string;
   cliente: string;
+  cidade: string | null;
   servico_realizado: string;
   observacao: string | null;
-  situacao_atendimento: "Finalizado" | "Retorno" | "Em Andamento" | "Orçamento Não Aprovado" | null;
+  situacao_atendimento: string | null;
+  status_atendimento: "Em andamento" | "Finalizado" | null;
+  agendamento_id: string | null;
+  bloqueado: boolean | null;
   created_at: string;
   updated_at: string;
 };

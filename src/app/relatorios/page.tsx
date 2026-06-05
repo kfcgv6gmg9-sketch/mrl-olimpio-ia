@@ -192,7 +192,11 @@ export default function RelatoriosPage() {
     });
   }
 
-  const agendaSituationCounts = countSituations(agendaRecords, ["Realizado", "Cancelado"], "situacao_agendamento");
+  const agendaSituationCounts = countSituations(
+    agendaRecords,
+    ["Serviço Técnico", "Retorno", "Garantia"],
+    "situacao_agendamento"
+  );
   const diarioSituationCounts = countSituations(
     diarioRecords,
     ["Finalizado", "Retorno", "Em Andamento", "Orçamento Não Aprovado"],
@@ -295,8 +299,9 @@ export default function RelatoriosPage() {
                     }
                   >
                     <option value="">Todas</option>
-                    <option value="Realizado">Realizado</option>
-                    <option value="Cancelado">Cancelado</option>
+                    <option value="Serviço Técnico">Serviço Técnico</option>
+                    <option value="Retorno">Retorno</option>
+                    <option value="Garantia">Garantia</option>
                   </select>
                 </label>
 
@@ -611,7 +616,7 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
-function countSituations<T extends Record<string, string | null>>(
+function countSituations<T extends Record<string, unknown>>(
   records: T[],
   labels: string[],
   field: keyof T

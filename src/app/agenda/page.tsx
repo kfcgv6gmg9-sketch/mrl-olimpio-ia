@@ -9,16 +9,27 @@ import { AgendaServico } from "@/types/database";
 type AgendaForm = {
   data: string;
   cliente: string;
+  cidade: string;
   observacao: string;
   situacao_agendamento: string;
+  status_agendamento: string;
 };
 
 const initialForm: AgendaForm = {
   data: "",
   cliente: "",
+  cidade: "",
   observacao: "",
-  situacao_agendamento: ""
+  situacao_agendamento: "Serviço Técnico",
+  status_agendamento: "Agendado"
 };
+
+const situacoesAgendamento = ["Serviço Técnico", "Retorno", "Garantia"];
+const statusAgendamento = ["Agendado", "Reagendado", "Cancelado"];
+
+function isAgendaLocked(record: AgendaServico) {
+  return record.status_agendamento === "Cancelado" || record.bloqueado === true;
+}
 
 export default function AgendaPage() {
   const [records, setRecords] = useState<AgendaServico[]>([]);
@@ -58,11 +69,23 @@ export default function AgendaPage() {
     setMessage("");
     setError("");
 
+    if (editingId) {
+      const currentRecord = records.find((record) => record.id === editingId);
+
+      if (currentRecord && isAgendaLocked(currentRecord)) {
+        setError("Registro bloqueado ou cancelado nao pode ser editado.");
+        setSaving(false);
+        return;
+      }
+    }
+
     const payload = {
       data: form.data,
       cliente: form.cliente.trim(),
+      cidade: form.cidade.trim() || null,
       observacao: form.observacao.trim() || null,
-      situacao_agendamento: form.situacao_agendamento || null
+      situacao_agendamento: form.situacao_agendamento || null,
+      status_agendamento: form.status_agendamento || null
     };
 
     const response = editingId
@@ -82,12 +105,20 @@ export default function AgendaPage() {
   }
 
   function handleEdit(record: AgendaServico) {
+    if (isAgendaLocked(record)) {
+      setMessage("");
+      setError("Registro bloqueado ou cancelado nao pode ser editado.");
+      return;
+    }
+
     setEditingId(record.id);
     setForm({
       data: record.data,
       cliente: record.cliente,
+      cidade: record.cidade ?? "",
       observacao: record.observacao ?? "",
-      situacao_agendamento: record.situacao_agendamento ?? ""
+      situacao_agendamento: record.situacao_agendamento ?? "Serviço Técnico",
+      status_agendamento: record.status_agendamento ?? "Agendado"
     });
     setMessage("");
     setError("");
@@ -160,24 +191,51 @@ export default function AgendaPage() {
               </label>
 
               <label>
-                Observacao
-                <textarea
-                  rows={4}
-                  value={form.observacao}
-                  onChange={(event) => setForm({ ...form, observacao: event.target.value })}
+                Cidade
+                <input
+                  type="text"
+                  value={form.cidade}
+                  onChange={(event) => setForm({ ...form, cidade: event.target.value })}
                 />
               </label>
 
               <label>
                 Situacao do Agendamento
                 <select
+                  required
                   value={form.situacao_agendamento}
                   onChange={(event) => setForm({ ...form, situacao_agendamento: event.target.value })}
                 >
-                  <option value="">Nao informado</option>
-                  <option value="Realizado">Realizado</option>
-                  <option value="Cancelado">Cancelado</option>
+                  {situacoesAgendamento.map((situacao) => (
+                    <option key={situacao} value={situacao}>
+                      {situacao}
+                    </option>
+                  ))}
                 </select>
+              </label>
+
+              <label>
+                Status do Agendamento
+                <select
+                  required
+                  value={form.status_agendamento}
+                  onChange={(event) => setForm({ ...form, status_agendamento: event.target.value })}
+                >
+                  {statusAgendamento.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Observacao
+                <textarea
+                  rows={4}
+                  value={form.observacao}
+                  onChange={(event) => setForm({ ...form, observacao: event.target.value })}
+                />
               </label>
 
               {error ? <p className="error-text">{error}</p> : null}
@@ -210,24 +268,36 @@ export default function AgendaPage() {
               ) : null}
 
               <div className="record-list">
-                {records.map((record) => (
-                  <article className="record-card" key={record.id}>
-                    <div>
-                      <strong>{record.cliente}</strong>
-                      <span>{record.data}</span>
-                      <span>Situacao: {record.situacao_agendamento ?? "Nao informado"}</span>
-                      {record.observacao ? <p>{record.observacao}</p> : null}
-                    </div>
-                    <div className="button-row">
-                      <button className="secondary-button" onClick={() => handleEdit(record)} type="button">
-                        Editar
-                      </button>
-                      <button className="danger-button" onClick={() => handleDelete(record.id)} type="button">
-                        Excluir
-                      </button>
-                    </div>
-                  </article>
-                ))}
+                {records.map((record) => {
+                  const locked = isAgendaLocked(record);
+
+                  return (
+                    <article className="record-card" key={record.id}>
+                      <div>
+                        <strong>{record.cliente}</strong>
+                        <span>{record.data}</span>
+                        <span>Cidade: {record.cidade ?? "Nao informado"}</span>
+                        <span>Situacao: {record.situacao_agendamento ?? "Nao informado"}</span>
+                        <span>Status: {record.status_agendamento ?? "Nao informado"}</span>
+                        {record.bloqueado ? <span>Bloqueado: Sim</span> : null}
+                        {record.observacao ? <p>{record.observacao}</p> : null}
+                      </div>
+                      <div className="button-row">
+                        <button
+                          className="secondary-button"
+                          disabled={locked}
+                          onClick={() => handleEdit(record)}
+                          type="button"
+                        >
+                          Editar
+                        </button>
+                        <button className="danger-button" onClick={() => handleDelete(record.id)} type="button">
+                          Excluir
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </section>
           </section>
