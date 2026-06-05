@@ -59,7 +59,7 @@ export function AuthGate({ children }: AuthGateProps) {
   if (!session) {
     return (
       <section className="panel auth-panel">
-        <h1>Acesso ao MRL-IA V1</h1>
+        <h1>Acesso ao MRL Gestão</h1>
         <p className="muted-text">Entre com o usuario autorizado no Supabase.</p>
 
         <form className="form-grid" onSubmit={handleLogin}>
