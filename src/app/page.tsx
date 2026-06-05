@@ -23,6 +23,11 @@ const modules = [
     title: "Veiculos",
     description: "Controle de despesas operacionais por placa, veiculo e tipo.",
     href: "/veiculos"
+  },
+  {
+    title: "Administração > Usuários",
+    description: "Gestão de usuários, perfis e status de acesso.",
+    href: "/administracao/usuarios"
   }
 ];
 

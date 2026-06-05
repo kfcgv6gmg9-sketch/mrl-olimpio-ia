@@ -136,6 +136,15 @@ select {
   font-weight: 700;
 }
 
+.form-grid .checkbox-label {
+  display: flex;
+  align-items: center;
+}
+
+.form-grid .checkbox-label input {
+  width: auto;
+}
+
 .form-grid input,
 .form-grid textarea,
 .form-grid select {

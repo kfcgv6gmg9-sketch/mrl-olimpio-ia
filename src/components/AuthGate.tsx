@@ -3,6 +3,7 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { UserMetadata, userProfiles } from "@/types/users";
 
 type AuthGateProps = {
   children: ReactNode;
@@ -17,15 +18,29 @@ export function AuthGate({ children }: AuthGateProps) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    async function applySession(currentSession: Session | null) {
+      const metadata = currentSession?.user.user_metadata as UserMetadata | undefined;
+      const hasValidProfile = metadata?.perfil ? userProfiles.some((profile) => profile === metadata.perfil) : false;
+
+      if (currentSession && (!hasValidProfile || metadata?.ativo === false)) {
+        setError("Usuario sem acesso ativo. Solicite acesso ao administrador.");
+        await supabase.auth.signOut();
+        setSession(null);
+        return;
+      }
+
+      setSession(currentSession);
+    }
+
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+      applySession(data.session);
       setLoading(false);
     });
 
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      setSession(currentSession);
+      applySession(currentSession);
     });
 
     return () => subscription.unsubscribe();
