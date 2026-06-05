@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { AuthGate } from "@/components/AuthGate";
+import { logAudit } from "@/lib/audit";
 import { supabase } from "@/lib/supabase";
 import { AgendaServico } from "@/types/database";
 
@@ -89,12 +90,17 @@ export default function AgendaPage() {
     };
 
     const response = editingId
-      ? await supabase.from("agenda_servicos").update(payload).eq("id", editingId)
-      : await supabase.from("agenda_servicos").insert(payload);
+      ? await supabase.from("agenda_servicos").update(payload).eq("id", editingId).select("id").single()
+      : await supabase.from("agenda_servicos").insert(payload).select("id").single();
 
     if (response.error) {
       setError(response.error.message);
     } else {
+      await logAudit({
+        modulo: "Agenda",
+        acao: payload.status_agendamento === "Cancelado" ? "Cancelar" : editingId ? "Editar" : "Criar",
+        registro_afetado: response.data?.id ?? editingId ?? form.cliente
+      });
       setForm(initialForm);
       setEditingId(null);
       setMessage(editingId ? "Registro atualizado." : "Registro salvo.");
@@ -146,6 +152,11 @@ export default function AgendaPage() {
     if (deleteError) {
       setError(deleteError.message);
     } else {
+      await logAudit({
+        modulo: "Agenda",
+        acao: "Excluir",
+        registro_afetado: id
+      });
       setMessage("Registro excluido.");
       await loadRecords();
     }

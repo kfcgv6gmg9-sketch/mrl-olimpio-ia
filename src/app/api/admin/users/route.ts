@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError, normalizeUserPayload, requireAdmin } from "@/lib/adminAuth";
+import { logServerAudit } from "@/lib/auditServer";
 import { ManagedUser, UserMetadata } from "@/types/users";
 
 function toManagedUser(user: {
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { error, supabase } = await requireAdmin(request);
+    const { actorEmail, error, supabase } = await requireAdmin(request);
 
     if (error || !supabase) {
       return error;
@@ -76,6 +77,14 @@ export async function POST(request: NextRequest) {
     if (createError) {
       return jsonError(createError.message, 400);
     }
+
+    await logServerAudit({
+      supabase,
+      usuario: actorEmail,
+      modulo: "Usuários",
+      acao: "Criar",
+      registro_afetado: data.user?.id ?? email
+    });
 
     return NextResponse.json({ user: data.user ? toManagedUser(data.user) : null }, { status: 201 });
   } catch (error) {

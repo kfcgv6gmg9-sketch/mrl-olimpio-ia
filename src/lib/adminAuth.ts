@@ -31,14 +31,14 @@ export async function requireAdmin(request: NextRequest) {
   const token = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : "";
 
   if (!token) {
-    return { error: jsonError("Sessao nao informada.", 401), supabase: null };
+    return { actorEmail: "", error: jsonError("Sessao nao informada.", 401), supabase: null };
   }
 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.auth.getUser(token);
 
   if (error || !data.user) {
-    return { error: jsonError("Sessao invalida.", 401), supabase: null };
+    return { actorEmail: "", error: jsonError("Sessao invalida.", 401), supabase: null };
   }
 
   const metadata = data.user.user_metadata as UserMetadata;
@@ -46,10 +46,10 @@ export async function requireAdmin(request: NextRequest) {
   const isActive = metadata.ativo !== false;
 
   if (!isAdmin || !isActive) {
-    return { error: jsonError("Acesso permitido apenas para Administrador ativo.", 403), supabase: null };
+    return { actorEmail: "", error: jsonError("Acesso permitido apenas para Administrador ativo.", 403), supabase: null };
   }
 
-  return { error: null, supabase };
+  return { actorEmail: data.user.email ?? "Usuario nao identificado", error: null, supabase };
 }
 
 export function normalizeUserPayload(body: unknown, requirePassword: boolean): NormalizedUserPayload {

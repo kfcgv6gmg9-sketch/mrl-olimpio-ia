@@ -48,6 +48,11 @@ const modules = [
     title: "Administracao > Usuarios",
     description: "Gestao de usuarios, perfis e status de acesso.",
     href: "/administracao/usuarios"
+  },
+  {
+    title: "Administracao > Auditoria",
+    description: "Historico de alteracoes por usuario, modulo e periodo.",
+    href: "/administracao/auditoria"
   }
 ];
 

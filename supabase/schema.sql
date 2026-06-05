@@ -39,6 +39,20 @@ create table if not exists public.diario_operacional (
 );
 
 -- =========================
+-- AUDITORIA
+-- =========================
+create table if not exists public.auditoria (
+  id uuid primary key default gen_random_uuid(),
+  usuario text not null,
+  data date not null,
+  hora time not null,
+  modulo text not null check (modulo in ('Agenda', 'Diário', 'Veículos', 'Usuários')),
+  acao text not null check (acao in ('Criar', 'Editar', 'Excluir', 'Finalizar', 'Cancelar')),
+  registro_afetado text not null,
+  created_at timestamptz not null default now()
+);
+
+-- =========================
 -- CADASTRO DE VEÍCULOS
 -- =========================
 create table if not exists public.veiculos (

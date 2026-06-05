@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jsonError, normalizeUserPayload, requireAdmin } from "@/lib/adminAuth";
+import { logServerAudit } from "@/lib/auditServer";
 
 type RouteContext = {
   params: {
@@ -9,7 +10,7 @@ type RouteContext = {
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
-    const { error, supabase } = await requireAdmin(request);
+    const { actorEmail, error, supabase } = await requireAdmin(request);
 
     if (error || !supabase) {
       return error;
@@ -40,6 +41,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (updateError) {
       return jsonError(updateError.message, 400);
     }
+
+    await logServerAudit({
+      supabase,
+      usuario: actorEmail,
+      modulo: "Usuários",
+      acao: "Editar",
+      registro_afetado: params.id
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

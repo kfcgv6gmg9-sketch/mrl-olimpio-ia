@@ -38,3 +38,14 @@ export type DespesaVeiculo = {
   created_at: string;
   updated_at: string;
 };
+
+export type Auditoria = {
+  id: string;
+  usuario: string;
+  data: string;
+  hora: string;
+  modulo: "Agenda" | "Diário" | "Veículos" | "Usuários";
+  acao: "Criar" | "Editar" | "Excluir" | "Finalizar" | "Cancelar";
+  registro_afetado: string;
+  created_at: string;
+};

@@ -186,6 +186,7 @@ export default function UsuariosPage() {
             </div>
             <nav className="nav" aria-label="Navegacao">
               <Link href="/">Inicio</Link>
+              <Link href="/administracao/auditoria">Auditoria</Link>
               <Link href="/agenda">Agenda</Link>
               <Link href="/diario">Diario</Link>
             </nav>

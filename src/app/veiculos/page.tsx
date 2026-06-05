@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { AuthGate } from "@/components/AuthGate";
+import { logAudit } from "@/lib/audit";
 import { supabase } from "@/lib/supabase";
 import { DespesaVeiculo } from "@/types/database";
 
@@ -131,12 +132,17 @@ export default function VeiculosPage() {
     };
 
     const response = editingId
-      ? await supabase.from("despesas_veiculos").update(payload).eq("id", editingId)
-      : await supabase.from("despesas_veiculos").insert(payload);
+      ? await supabase.from("despesas_veiculos").update(payload).eq("id", editingId).select("id").single()
+      : await supabase.from("despesas_veiculos").insert(payload).select("id").single();
 
     if (response.error) {
       setError(response.error.message);
     } else {
+      await logAudit({
+        modulo: "Veículos",
+        acao: editingId ? "Editar" : "Criar",
+        registro_afetado: response.data?.id ?? editingId ?? payload.placa
+      });
       setForm(initialForm);
       setEditingId(null);
       setMessage(editingId ? "Despesa atualizada." : "Despesa salva.");
@@ -182,6 +188,11 @@ export default function VeiculosPage() {
     if (deleteError) {
       setError(deleteError.message);
     } else {
+      await logAudit({
+        modulo: "Veículos",
+        acao: "Excluir",
+        registro_afetado: id
+      });
       setMessage("Despesa excluida.");
       await loadRecords(filters);
     }
