@@ -148,7 +148,7 @@ export default function HomePage() {
       <div className="app-container">
         <header className="topbar">
           <div className="brand">
-            <h1>MRL OLIMPIO IA</h1>
+            <h1>MRL Gestão</h1>
             <p>Gestão Operacional</p>
           </div>
           <nav className="nav" aria-label="Navegacao principal">

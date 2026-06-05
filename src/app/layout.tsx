@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MRL-IA V1",
+  title: "MRL Gestão",
   description: "Sistema operacional simples para uso pessoal do Murilo"
 };
 
