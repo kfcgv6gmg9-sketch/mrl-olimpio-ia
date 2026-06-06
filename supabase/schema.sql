@@ -38,6 +38,20 @@ create table if not exists public.diario_operacional (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.diario_movimentacoes (
+  id uuid primary key default gen_random_uuid(),
+  diario_id uuid not null references public.diario_operacional(id) on delete cascade,
+  data date not null,
+  tecnico text not null,
+  servico_realizado text not null,
+  observacao text,
+  status_atendimento text not null check (
+    status_atendimento in ('Em andamento', 'Finalizado')
+  ),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- =========================
 -- AUDITORIA
 -- =========================
@@ -119,14 +133,15 @@ create table if not exists public.manutencoes_veiculos (
 -- =========================
 create or replace view public.relatorio_operacional as
 select
-  data,
-  tecnico,
-  cliente,
-  servico_realizado,
-  situacao_atendimento,
-  observacao
-from public.diario_operacional
-order by data desc, tecnico, cliente;
+  movimentacoes.data,
+  movimentacoes.tecnico,
+  diario.cliente,
+  movimentacoes.servico_realizado,
+  movimentacoes.status_atendimento as situacao_atendimento,
+  movimentacoes.observacao
+from public.diario_movimentacoes movimentacoes
+join public.diario_operacional diario on diario.id = movimentacoes.diario_id
+order by movimentacoes.data desc, movimentacoes.tecnico, diario.cliente;
 
 -- =========================
 -- RELATÓRIO DE DESPESAS POR VEÍCULO
@@ -176,6 +191,11 @@ for each row execute function public.set_updated_at();
 drop trigger if exists set_updated_at_diario_operacional on public.diario_operacional;
 create trigger set_updated_at_diario_operacional
 before update on public.diario_operacional
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_updated_at_diario_movimentacoes on public.diario_movimentacoes;
+create trigger set_updated_at_diario_movimentacoes
+before update on public.diario_movimentacoes
 for each row execute function public.set_updated_at();
 
 drop trigger if exists set_updated_at_veiculos on public.veiculos;

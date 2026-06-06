@@ -7,7 +7,17 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
-import { AgendaServico, DiarioOperacional } from "@/types/database";
+import { AgendaServico, DiarioMovimentacao, DiarioOperacional } from "@/types/database";
+
+type DiarioReportRecord = {
+  id: string;
+  data: string;
+  tecnico: string;
+  cliente: string;
+  servico_realizado: string;
+  situacao_atendimento: string | null;
+  observacao: string | null;
+};
 
 type AgendaFilters = {
   data: string;
@@ -39,7 +49,7 @@ const initialDiarioFilters: DiarioFilters = {
 
 export default function RelatoriosPage() {
   const [agendaRecords, setAgendaRecords] = useState<AgendaServico[]>([]);
-  const [diarioRecords, setDiarioRecords] = useState<DiarioOperacional[]>([]);
+  const [diarioRecords, setDiarioRecords] = useState<DiarioReportRecord[]>([]);
   const [agendaFilters, setAgendaFilters] = useState<AgendaFilters>(initialAgendaFilters);
   const [diarioFilters, setDiarioFilters] = useState<DiarioFilters>(initialDiarioFilters);
   const [loadingAgenda, setLoadingAgenda] = useState(true);
@@ -96,32 +106,41 @@ export default function RelatoriosPage() {
       .order("data", { ascending: false })
       .order("created_at", { ascending: false });
 
+    let movementsQuery = supabase
+      .from("diario_movimentacoes")
+      .select("*")
+      .order("data", { ascending: false })
+      .order("created_at", { ascending: false });
+
     if (filters.data) {
-      query = query.eq("data", filters.data);
+      movementsQuery = movementsQuery.eq("data", filters.data);
     } else {
       if (filters.dataInicio) {
-        query = query.gte("data", filters.dataInicio);
+        movementsQuery = movementsQuery.gte("data", filters.dataInicio);
       }
 
       if (filters.dataFim) {
-        query = query.lte("data", filters.dataFim);
+        movementsQuery = movementsQuery.lte("data", filters.dataFim);
       }
     }
 
     if (filters.tecnico.trim()) {
-      query = query.ilike("tecnico", `%${filters.tecnico.trim()}%`);
+      movementsQuery = movementsQuery.ilike("tecnico", `%${filters.tecnico.trim()}%`);
     }
 
     if (filters.situacaoAtendimento) {
-      query = query.eq("situacao_atendimento", filters.situacaoAtendimento);
+      movementsQuery = movementsQuery.eq("status_atendimento", filters.situacaoAtendimento);
     }
 
-    const { data, error } = await query;
+    const [{ data: diarios, error: diarioError }, { data: movements, error: movementError }] = await Promise.all([
+      query,
+      movementsQuery
+    ]);
 
-    if (error) {
-      setDiarioError(error.message);
+    if (diarioError || movementError) {
+      setDiarioError(diarioError?.message ?? movementError?.message ?? "Nao foi possivel carregar diario.");
     } else {
-      setDiarioRecords(data ?? []);
+      setDiarioRecords(buildDiarioReportRows(diarios ?? [], movements ?? [], filters));
     }
 
     setLoadingDiario(false);
@@ -206,7 +225,7 @@ export default function RelatoriosPage() {
   );
   const diarioSituationCounts = countSituations(
     diarioRecords,
-    ["Finalizado", "Retorno", "Em Andamento", "Orçamento Não Aprovado"],
+    ["Em andamento", "Finalizado"],
     "situacao_atendimento"
   );
 
@@ -398,10 +417,8 @@ export default function RelatoriosPage() {
                     }
                   >
                     <option value="">Todas</option>
+                    <option value="Em andamento">Em andamento</option>
                     <option value="Finalizado">Finalizado</option>
-                    <option value="Retorno">Retorno</option>
-                    <option value="Em Andamento">Em Andamento</option>
-                    <option value="Orçamento Não Aprovado">Orçamento Não Aprovado</option>
                   </select>
                 </label>
 
@@ -476,7 +493,7 @@ function agendaCsvRows(records: AgendaServico[]) {
   }));
 }
 
-function diarioCsvRows(records: DiarioOperacional[]) {
+function diarioCsvRows(records: DiarioReportRecord[]) {
   return records.map((record) => ({
     data: record.data,
     tecnico: record.tecnico,
@@ -485,6 +502,74 @@ function diarioCsvRows(records: DiarioOperacional[]) {
     situacao_atendimento: record.situacao_atendimento ?? "",
     observacao: record.observacao ?? ""
   }));
+}
+
+function buildDiarioReportRows(
+  diarios: DiarioOperacional[],
+  movements: DiarioMovimentacao[],
+  filters: DiarioFilters
+): DiarioReportRecord[] {
+  const rowsFromMovements = movements.flatMap((movement) => {
+    const diario = diarios.find((record) => record.id === movement.diario_id);
+
+    if (!diario) {
+      return [];
+    }
+
+    return [
+      {
+        id: movement.id,
+        data: movement.data,
+        tecnico: movement.tecnico,
+        cliente: diario.cliente,
+        servico_realizado: movement.servico_realizado,
+        situacao_atendimento: movement.status_atendimento,
+        observacao: movement.observacao
+      }
+    ];
+  });
+
+  if (rowsFromMovements.length > 0) {
+    return rowsFromMovements;
+  }
+
+  return diarios
+    .filter((record) => legacyDiarioMatchesFilters(record, filters))
+    .map((record) => ({
+      id: record.id,
+      data: record.data,
+      tecnico: record.tecnico,
+      cliente: record.cliente,
+      servico_realizado: record.servico_realizado,
+      situacao_atendimento: record.status_atendimento ?? record.situacao_atendimento,
+      observacao: record.observacao
+    }));
+}
+
+function legacyDiarioMatchesFilters(record: DiarioOperacional, filters: DiarioFilters) {
+  if (filters.data && record.data !== filters.data) {
+    return false;
+  }
+
+  if (!filters.data) {
+    if (filters.dataInicio && record.data < filters.dataInicio) {
+      return false;
+    }
+
+    if (filters.dataFim && record.data > filters.dataFim) {
+      return false;
+    }
+  }
+
+  if (filters.tecnico.trim() && !record.tecnico.toLowerCase().includes(filters.tecnico.trim().toLowerCase())) {
+    return false;
+  }
+
+  if (filters.situacaoAtendimento && record.status_atendimento !== filters.situacaoAtendimento) {
+    return false;
+  }
+
+  return true;
 }
 
 function formatPeriod(filters: AgendaFilters) {

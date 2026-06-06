@@ -27,6 +27,18 @@ export type DiarioOperacional = {
   updated_at: string;
 };
 
+export type DiarioMovimentacao = {
+  id: string;
+  diario_id: string;
+  data: string;
+  tecnico: string;
+  servico_realizado: string;
+  observacao: string | null;
+  status_atendimento: "Em andamento" | "Finalizado";
+  created_at: string;
+  updated_at: string;
+};
+
 export type DespesaVeiculo = {
   id: string;
   data: string;

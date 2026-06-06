@@ -198,12 +198,12 @@ function HomeDashboard() {
           .from("agenda_servicos")
           .select("id", { count: "exact", head: true })
           .eq("bloqueado", true),
-        supabase
-          .from("diario_operacional")
+      supabase
+          .from("diario_movimentacoes")
           .select("id", { count: "exact", head: true })
           .eq("data", today),
         supabase
-          .from("diario_operacional")
+          .from("diario_movimentacoes")
           .select("id", { count: "exact", head: true })
           .gte("data", weekStart)
           .lte("data", weekEnd),
