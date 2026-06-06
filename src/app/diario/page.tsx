@@ -38,7 +38,7 @@ const initialForm: DiarioForm = {
   cidade: "",
   servico_realizado: "",
   observacao: "",
-  situacao_atendimento: "",
+  situacao_atendimento: "Serviço Técnico",
   status_atendimento: "Em andamento",
   agendamento_id: ""
 };
@@ -53,6 +53,8 @@ const initialMovimentacaoForm: MovimentacaoForm = {
 };
 
 const statusAtendimento = ["Em andamento", "Finalizado"];
+const situacoesAtendimento = ["Serviço Técnico", "Retorno", "Garantia"];
+const defaultSituacaoAtendimento = "Serviço Técnico";
 
 function isDiarioLocked(record: DiarioOperacional) {
   return record.status_atendimento === "Finalizado" || record.bloqueado === true;
@@ -84,6 +86,10 @@ function normalizeMainSituation(value: string) {
   const legacyAllowedValues = ["Realizado", "Pendente", "Retorno", "Cancelado"];
 
   return legacyAllowedValues.includes(trimmedValue) ? trimmedValue : null;
+}
+
+function normalizeFormSituation(value?: string | null) {
+  return value && situacoesAtendimento.includes(value) ? value : defaultSituacaoAtendimento;
 }
 
 export default function DiarioPage() {
@@ -320,6 +326,8 @@ export default function DiarioPage() {
       return;
     }
 
+    const linkedAgenda = agendaRecords.find((agenda) => agenda.id === record.agendamento_id);
+
     setEditingId(record.id);
     setForm({
       data: record.data,
@@ -328,7 +336,7 @@ export default function DiarioPage() {
       cidade: record.cidade ?? "",
       servico_realizado: record.servico_realizado,
       observacao: record.observacao ?? "",
-      situacao_atendimento: record.situacao_atendimento ?? "",
+      situacao_atendimento: normalizeFormSituation(record.situacao_atendimento ?? linkedAgenda?.situacao_agendamento),
       status_atendimento: record.status_atendimento ?? "Em andamento",
       agendamento_id: record.agendamento_id ?? ""
     });
@@ -366,7 +374,11 @@ export default function DiarioPage() {
     const selectedAgenda = agendaRecords.find((record) => record.id === agendamentoId);
 
     if (!selectedAgenda) {
-      setForm({ ...form, agendamento_id: agendamentoId });
+      setForm({
+        ...form,
+        agendamento_id: agendamentoId,
+        situacao_atendimento: defaultSituacaoAtendimento
+      });
       return;
     }
 
@@ -375,7 +387,7 @@ export default function DiarioPage() {
       agendamento_id: agendamentoId,
       cliente: selectedAgenda.cliente,
       cidade: selectedAgenda.cidade ?? "",
-      situacao_atendimento: selectedAgenda.situacao_agendamento ?? "",
+      situacao_atendimento: normalizeFormSituation(selectedAgenda.situacao_agendamento),
       servico_realizado: selectedAgenda.observacao ?? ""
     });
   }
@@ -470,11 +482,17 @@ export default function DiarioPage() {
 
                   <label>
                     Situacao do Atendimento
-                    <input
-                      type="text"
+                    <select
+                      required
                       value={form.situacao_atendimento}
                       onChange={(event) => setForm({ ...form, situacao_atendimento: event.target.value })}
-                    />
+                    >
+                      {situacoesAtendimento.map((situacao) => (
+                        <option key={situacao} value={situacao}>
+                          {situacao}
+                        </option>
+                      ))}
+                    </select>
                   </label>
 
                   <label>
@@ -646,7 +664,10 @@ export default function DiarioPage() {
                             Data original: {record.data} | {record.tecnico}
                           </span>
                           <span>Cidade: {record.cidade ?? "Nao informado"}</span>
-                          <span>Situacao: {record.situacao_atendimento ?? "Nao informado"}</span>
+                          <span>
+                            Situacao:{" "}
+                            {normalizeFormSituation(record.situacao_atendimento ?? linkedAgenda?.situacao_agendamento)}
+                          </span>
                           <span>Status: {record.status_atendimento ?? "Nao informado"}</span>
                           <span>
                             Agendamento:{" "}
