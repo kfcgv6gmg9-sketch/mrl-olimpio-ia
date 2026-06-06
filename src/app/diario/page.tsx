@@ -31,18 +31,6 @@ type MovimentacaoForm = {
   status_atendimento: string;
 };
 
-const initialForm: DiarioForm = {
-  data: "",
-  tecnico: "",
-  cliente: "",
-  cidade: "",
-  servico_realizado: "",
-  observacao: "",
-  situacao_atendimento: "Serviço Técnico",
-  status_atendimento: "Em andamento",
-  agendamento_id: ""
-};
-
 const initialMovimentacaoForm: MovimentacaoForm = {
   diario_id: "",
   data: "",
@@ -53,8 +41,22 @@ const initialMovimentacaoForm: MovimentacaoForm = {
 };
 
 const statusAtendimento = ["Em andamento", "Finalizado"];
-const situacoesAtendimento = ["Serviço Técnico", "Retorno", "Garantia"];
-const defaultSituacaoAtendimento = "Serviço Técnico";
+const defaultSituacaoAtendimento = "Servi\u00e7o T\u00e9cnico";
+const situacoesAtendimento = [defaultSituacaoAtendimento, "Retorno", "Garantia"];
+
+function createInitialForm(): DiarioForm {
+  return {
+    data: "",
+    tecnico: "",
+    cliente: "",
+    cidade: "",
+    servico_realizado: "",
+    observacao: "",
+    situacao_atendimento: defaultSituacaoAtendimento,
+    status_atendimento: "Em andamento",
+    agendamento_id: ""
+  };
+}
 
 function isDiarioLocked(record: DiarioOperacional) {
   return record.status_atendimento === "Finalizado" || record.bloqueado === true;
@@ -96,7 +98,7 @@ export default function DiarioPage() {
   const [records, setRecords] = useState<DiarioOperacional[]>([]);
   const [movements, setMovements] = useState<DiarioMovimentacao[]>([]);
   const [agendaRecords, setAgendaRecords] = useState<AgendaServico[]>([]);
-  const [form, setForm] = useState<DiarioForm>(initialForm);
+  const [form, setForm] = useState<DiarioForm>(createInitialForm);
   const [movementForm, setMovementForm] = useState<MovimentacaoForm>(initialMovimentacaoForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -172,6 +174,7 @@ export default function DiarioPage() {
       }
     }
 
+    const normalizedSituation = normalizeFormSituation(form.situacao_atendimento);
     const payload = {
       data: form.data,
       tecnico: form.tecnico.trim(),
@@ -179,7 +182,7 @@ export default function DiarioPage() {
       cidade: form.cidade.trim() || null,
       servico_realizado: form.servico_realizado.trim(),
       observacao: form.observacao.trim() || null,
-      situacao_atendimento: normalizeMainSituation(form.situacao_atendimento),
+      situacao_atendimento: normalizeMainSituation(normalizedSituation),
       status_atendimento: form.status_atendimento || null,
       agendamento_id: form.agendamento_id || null,
       bloqueado: form.status_atendimento === "Finalizado"
@@ -234,7 +237,7 @@ export default function DiarioPage() {
       acao: payload.status_atendimento === "Finalizado" ? "Finalizar" : editingId ? "Editar" : "Criar",
       registro_afetado: diarioId ?? form.cliente
     });
-    setForm(initialForm);
+    setForm(createInitialForm());
     setEditingId(null);
     setMessage(editingId ? "Atendimento atualizado." : "Atendimento salvo com primeira movimentacao.");
     await loadRecords();
@@ -346,7 +349,7 @@ export default function DiarioPage() {
 
   function handleCancelEdit() {
     setEditingId(null);
-    setForm(initialForm);
+    setForm(createInitialForm());
     setMessage("");
     setError("");
   }
@@ -481,10 +484,10 @@ export default function DiarioPage() {
                   </label>
 
                   <label>
-                    Situacao do Atendimento
+                    Situação do Atendimento
                     <select
                       required
-                      value={form.situacao_atendimento}
+                      value={normalizeFormSituation(form.situacao_atendimento)}
                       onChange={(event) => setForm({ ...form, situacao_atendimento: event.target.value })}
                     >
                       {situacoesAtendimento.map((situacao) => (
