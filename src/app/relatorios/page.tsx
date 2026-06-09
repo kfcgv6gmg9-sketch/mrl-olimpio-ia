@@ -7,12 +7,13 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
-import { AgendaServico, DiarioMovimentacao, DiarioOperacional } from "@/types/database";
+import { AgendaServico, DiarioAjudante, DiarioMovimentacao, DiarioOperacional, Funcionario } from "@/types/database";
 
 type DiarioReportRecord = {
   id: string;
   data: string;
   tecnico: string;
+  funcao: string;
   cliente: string;
   servico_realizado: string;
   situacao_atendimento: string | null;
@@ -124,23 +125,34 @@ export default function RelatoriosPage() {
       }
     }
 
-    if (filters.tecnico.trim()) {
-      movementsQuery = movementsQuery.ilike("tecnico", `%${filters.tecnico.trim()}%`);
-    }
-
     if (filters.situacaoAtendimento) {
       movementsQuery = movementsQuery.eq("status_atendimento", filters.situacaoAtendimento);
     }
 
-    const [{ data: diarios, error: diarioError }, { data: movements, error: movementError }] = await Promise.all([
+    const [
+      { data: diarios, error: diarioError },
+      { data: movements, error: movementError },
+      { data: helpers, error: helpersError },
+      { data: funcionarios, error: funcionariosError }
+    ] = await Promise.all([
       query,
-      movementsQuery
+      movementsQuery,
+      supabase.from("diario_ajudantes").select("*"),
+      supabase.from("funcionarios").select("*").eq("ativo", true).order("nome", { ascending: true })
     ]);
 
-    if (diarioError || movementError) {
-      setDiarioError(diarioError?.message ?? movementError?.message ?? "Nao foi possivel carregar diario.");
+    if (diarioError || movementError || helpersError || funcionariosError) {
+      setDiarioError(
+        diarioError?.message ??
+          movementError?.message ??
+          helpersError?.message ??
+          funcionariosError?.message ??
+          "Nao foi possivel carregar diario."
+      );
     } else {
-      setDiarioRecords(buildDiarioReportRows(diarios ?? [], movements ?? [], filters));
+      setDiarioRecords(
+        buildDiarioReportRows(diarios ?? [], movements ?? [], helpers ?? [], funcionarios ?? [], filters)
+      );
     }
 
     setLoadingDiario(false);
@@ -184,7 +196,7 @@ export default function RelatoriosPage() {
   function exportDiarioCsv() {
     downloadCsv(
       "diario-operacional.csv",
-      ["data", "tecnico", "cliente", "servico_realizado", "situacao_atendimento", "observacao"],
+      ["data", "tecnico", "funcao", "cliente", "servico_realizado", "situacao_atendimento", "observacao"],
       diarioCsvRows(diarioRecords)
     );
   }
@@ -210,6 +222,8 @@ export default function RelatoriosPage() {
       tecnico: diarioFilters.tecnico.trim() || "Todos",
       rows: diarioRecords.map((record) => ({
         data: record.data,
+        tecnico: record.tecnico,
+        funcao: record.funcao,
         cliente: record.cliente,
         servico: record.servico_realizado,
         situacao: record.situacao_atendimento ?? "Nao informado",
@@ -446,6 +460,7 @@ export default function RelatoriosPage() {
                       <span>
                         {record.data} | {record.tecnico}
                       </span>
+                      <span>Funcao: {record.funcao}</span>
                       <span>Situacao: {record.situacao_atendimento ?? "Nao informado"}</span>
                       <p>{record.servico_realizado}</p>
                       {record.observacao ? <p>{record.observacao}</p> : null}
@@ -497,6 +512,7 @@ function diarioCsvRows(records: DiarioReportRecord[]) {
   return records.map((record) => ({
     data: record.data,
     tecnico: record.tecnico,
+    funcao: record.funcao,
     cliente: record.cliente,
     servico_realizado: record.servico_realizado,
     situacao_atendimento: record.situacao_atendimento ?? "",
@@ -507,8 +523,32 @@ function diarioCsvRows(records: DiarioReportRecord[]) {
 function buildDiarioReportRows(
   diarios: DiarioOperacional[],
   movements: DiarioMovimentacao[],
+  helpers: DiarioAjudante[],
+  funcionarios: Funcionario[],
   filters: DiarioFilters
 ): DiarioReportRecord[] {
+  const funcionarioName = (funcionarioId: string) =>
+    funcionarios.find((funcionario) => funcionario.id === funcionarioId)?.nome ?? funcionarioId;
+  const technicianFilter = filters.tecnico.trim().toLowerCase();
+  const matchesTechnicianFilter = (name: string) => !technicianFilter || name.toLowerCase().includes(technicianFilter);
+  const helperRows = (
+    diario: DiarioOperacional,
+    rowKey: string,
+    base: Omit<DiarioReportRecord, "id" | "tecnico" | "funcao">
+  ) =>
+    helpers
+      .filter((helper) => helper.diario_id === diario.id)
+      .map((helper) => {
+        const helperName = funcionarioName(helper.funcionario_id);
+
+        return {
+          ...base,
+          id: `${rowKey}-${helper.funcionario_id}`,
+          tecnico: helperName,
+          funcao: `Ajudante de ${diario.tecnico}`
+        };
+      });
+
   const rowsFromMovements = movements.flatMap((movement) => {
     const diario = diarios.find((record) => record.id === movement.diario_id);
 
@@ -516,17 +556,24 @@ function buildDiarioReportRows(
       return [];
     }
 
-    return [
+    const base = {
+      data: movement.data,
+      cliente: diario.cliente,
+      servico_realizado: movement.servico_realizado,
+      situacao_atendimento: movement.status_atendimento,
+      observacao: movement.observacao
+    };
+    const rows = [
       {
         id: movement.id,
-        data: movement.data,
-        tecnico: movement.tecnico,
-        cliente: diario.cliente,
-        servico_realizado: movement.servico_realizado,
-        situacao_atendimento: movement.status_atendimento,
-        observacao: movement.observacao
-      }
+        ...base,
+        tecnico: diario.tecnico,
+        funcao: "Técnico principal"
+      },
+      ...helperRows(diario, movement.id, base)
     ];
+
+    return rows.filter((record) => matchesTechnicianFilter(record.tecnico));
   });
 
   if (rowsFromMovements.length > 0) {
@@ -535,15 +582,26 @@ function buildDiarioReportRows(
 
   return diarios
     .filter((record) => legacyDiarioMatchesFilters(record, filters))
-    .map((record) => ({
-      id: record.id,
-      data: record.data,
-      tecnico: record.tecnico,
-      cliente: record.cliente,
-      servico_realizado: record.servico_realizado,
-      situacao_atendimento: record.status_atendimento ?? record.situacao_atendimento,
-      observacao: record.observacao
-    }));
+    .flatMap((record) => {
+      const base = {
+        data: record.data,
+        cliente: record.cliente,
+        servico_realizado: record.servico_realizado,
+        situacao_atendimento: record.status_atendimento ?? record.situacao_atendimento,
+        observacao: record.observacao
+      };
+      const rows = [
+        {
+          id: record.id,
+          ...base,
+          tecnico: record.tecnico,
+          funcao: "Técnico principal"
+        },
+        ...helperRows(record, record.id, base)
+      ];
+
+      return rows.filter((row) => matchesTechnicianFilter(row.tecnico));
+    });
 }
 
 function legacyDiarioMatchesFilters(record: DiarioOperacional, filters: DiarioFilters) {
@@ -559,10 +617,6 @@ function legacyDiarioMatchesFilters(record: DiarioOperacional, filters: DiarioFi
     if (filters.dataFim && record.data > filters.dataFim) {
       return false;
     }
-  }
-
-  if (filters.tecnico.trim() && !record.tecnico.toLowerCase().includes(filters.tecnico.trim().toLowerCase())) {
-    return false;
   }
 
   if (filters.situacaoAtendimento && record.status_atendimento !== filters.situacaoAtendimento) {
@@ -603,6 +657,8 @@ function printPdfReport({
   tecnico?: string;
   rows: Array<{
     data: string;
+    tecnico?: string;
+    funcao?: string;
     cliente: string;
     servico: string;
     situacao: string;
@@ -622,6 +678,8 @@ function printPdfReport({
           (row) => `
             <tr>
               <td>${escapeHtml(row.data)}</td>
+              <td>${escapeHtml(row.tecnico ?? "")}</td>
+              <td>${escapeHtml(row.funcao ?? "")}</td>
               <td>${escapeHtml(row.cliente)}</td>
               <td>${escapeHtml(row.servico)}</td>
               <td>${escapeHtml(row.situacao)}</td>
@@ -630,7 +688,7 @@ function printPdfReport({
           `
         )
         .join("")
-    : '<tr><td colspan="5">Nenhum registro encontrado.</td></tr>';
+    : '<tr><td colspan="7">Nenhum registro encontrado.</td></tr>';
 
   reportWindow.document.write(`
     <!doctype html>
@@ -681,6 +739,8 @@ function printPdfReport({
           <thead>
             <tr>
               <th>Data</th>
+              <th>Tecnico</th>
+              <th>Funcao</th>
               <th>Cliente</th>
               <th>Servico</th>
               <th>Situacao</th>

@@ -8,7 +8,7 @@ import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { logAudit } from "@/lib/audit";
 import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
-import { AgendaServico, DiarioMovimentacao, DiarioOperacional } from "@/types/database";
+import { AgendaServico, DiarioAjudante, DiarioMovimentacao, DiarioOperacional, Funcionario } from "@/types/database";
 
 type DiarioForm = {
   data: string;
@@ -20,6 +20,7 @@ type DiarioForm = {
   situacao_atendimento: string;
   status_atendimento: string;
   agendamento_id: string;
+  ajudantes: string[];
 };
 
 type MovimentacaoForm = {
@@ -54,7 +55,8 @@ function createInitialForm(): DiarioForm {
     observacao: "",
     situacao_atendimento: defaultSituacaoAtendimento,
     status_atendimento: "Em andamento",
-    agendamento_id: ""
+    agendamento_id: "",
+    ajudantes: []
   };
 }
 
@@ -94,10 +96,16 @@ function normalizeFormSituation(value?: string | null) {
   return value && situacoesAtendimento.includes(value) ? value : defaultSituacaoAtendimento;
 }
 
+function selectValues(select: HTMLSelectElement) {
+  return Array.from(select.selectedOptions).map((option) => option.value);
+}
+
 export default function DiarioPage() {
   const [records, setRecords] = useState<DiarioOperacional[]>([]);
   const [movements, setMovements] = useState<DiarioMovimentacao[]>([]);
   const [agendaRecords, setAgendaRecords] = useState<AgendaServico[]>([]);
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
+  const [ajudantes, setAjudantes] = useState<DiarioAjudante[]>([]);
   const [form, setForm] = useState<DiarioForm>(createInitialForm);
   const [movementForm, setMovementForm] = useState<MovimentacaoForm>(initialMovimentacaoForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -118,7 +126,7 @@ export default function DiarioPage() {
     setLoading(true);
     setError("");
 
-    const [diarioResponse, movementResponse, agendaResponse] = await Promise.all([
+    const [diarioResponse, movementResponse, agendaResponse, funcionariosResponse, ajudantesResponse] = await Promise.all([
       supabase
         .from("diario_operacional")
         .select("*")
@@ -133,7 +141,15 @@ export default function DiarioPage() {
         .from("agenda_servicos")
         .select("*")
         .order("data", { ascending: false })
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("funcionarios")
+        .select("*")
+        .eq("ativo", true)
+        .order("nome", { ascending: true }),
+      supabase
+        .from("diario_ajudantes")
+        .select("*")
     ]);
 
     if (diarioResponse.error) {
@@ -153,6 +169,20 @@ export default function DiarioPage() {
       setError((currentError) => currentError || agendaResponse.error.message);
     } else {
       setAgendaRecords(agendaResponse.data ?? []);
+    }
+
+    if (funcionariosResponse.error) {
+      setError((currentError) => currentError || funcionariosResponse.error.message);
+      setFuncionarios([]);
+    } else {
+      setFuncionarios(funcionariosResponse.data ?? []);
+    }
+
+    if (ajudantesResponse.error) {
+      setError((currentError) => currentError || ajudantesResponse.error.message);
+      setAjudantes([]);
+    } else {
+      setAjudantes(ajudantesResponse.data ?? []);
     }
 
     setLoading(false);
@@ -199,6 +229,35 @@ export default function DiarioPage() {
     }
 
     const diarioId = response.data?.id ?? editingId;
+
+    if (diarioId) {
+      const { error: deleteHelpersError } = await supabase.from("diario_ajudantes").delete().eq("diario_id", diarioId);
+
+      if (deleteHelpersError) {
+        setError(`Registro salvo, mas nao foi possivel atualizar ajudantes: ${deleteHelpersError.message}`);
+        await loadRecords();
+        setSaving(false);
+        return;
+      }
+
+      const selectedHelpers = Array.from(new Set(form.ajudantes)).filter(Boolean);
+
+      if (selectedHelpers.length > 0) {
+        const { error: insertHelpersError } = await supabase.from("diario_ajudantes").insert(
+          selectedHelpers.map((funcionarioId) => ({
+            diario_id: diarioId,
+            funcionario_id: funcionarioId
+          }))
+        );
+
+        if (insertHelpersError) {
+          setError(`Registro salvo, mas nao foi possivel gravar ajudantes: ${insertHelpersError.message}`);
+          await loadRecords();
+          setSaving(false);
+          return;
+        }
+      }
+    }
 
     if (!editingId && diarioId) {
       const { error: movementError } = await supabase.from("diario_movimentacoes").insert({
@@ -341,7 +400,10 @@ export default function DiarioPage() {
       observacao: record.observacao ?? "",
       situacao_atendimento: normalizeFormSituation(record.situacao_atendimento ?? linkedAgenda?.situacao_agendamento),
       status_atendimento: record.status_atendimento ?? "Em andamento",
-      agendamento_id: record.agendamento_id ?? ""
+      agendamento_id: record.agendamento_id ?? "",
+      ajudantes: ajudantes
+        .filter((helper) => helper.diario_id === record.id)
+        .map((helper) => helper.funcionario_id)
     });
     setMessage("");
     setError("");
@@ -426,6 +488,22 @@ export default function DiarioPage() {
     return currentMovements.length > 0 ? currentMovements : [movementFallback(record)];
   }
 
+  function funcionarioName(funcionarioId: string) {
+    return funcionarios.find((funcionario) => funcionario.id === funcionarioId)?.nome ?? funcionarioId;
+  }
+
+  function recordHelpers(recordId: string) {
+    return ajudantes.filter((helper) => helper.diario_id === recordId);
+  }
+
+  const tecnicoOptions = Array.from(
+    new Set([
+      ...funcionarios.map((funcionario) => funcionario.nome),
+      form.tecnico,
+      movementForm.tecnico
+    ].filter(Boolean))
+  );
+
   return (
     <main className="app-shell">
       <div className="app-container">
@@ -456,12 +534,18 @@ export default function DiarioPage() {
 
                   <label>
                     Tecnico
-                    <input
+                    <select
                       required
-                      type="text"
                       value={form.tecnico}
                       onChange={(event) => setForm({ ...form, tecnico: event.target.value })}
-                    />
+                    >
+                      <option value="">Selecione</option>
+                      {tecnicoOptions.map((tecnico) => (
+                        <option key={tecnico} value={tecnico}>
+                          {tecnico}
+                        </option>
+                      ))}
+                    </select>
                   </label>
 
                   <label>
@@ -529,6 +613,21 @@ export default function DiarioPage() {
                   </label>
 
                   <label>
+                    Ajudantes
+                    <select
+                      multiple
+                      value={form.ajudantes}
+                      onChange={(event) => setForm({ ...form, ajudantes: selectValues(event.currentTarget) })}
+                    >
+                      {funcionarios.map((funcionario) => (
+                        <option key={funcionario.id} value={funcionario.id}>
+                          {funcionario.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
                     Servico inicial
                     <textarea
                       required
@@ -578,12 +677,18 @@ export default function DiarioPage() {
 
                     <label>
                       Tecnico
-                      <input
+                      <select
                         required
-                        type="text"
                         value={movementForm.tecnico}
                         onChange={(event) => setMovementForm({ ...movementForm, tecnico: event.target.value })}
-                      />
+                      >
+                        <option value="">Selecione</option>
+                        {tecnicoOptions.map((tecnico) => (
+                          <option key={tecnico} value={tecnico}>
+                            {tecnico}
+                          </option>
+                        ))}
+                      </select>
                     </label>
 
                     <label>
@@ -672,6 +777,11 @@ export default function DiarioPage() {
                             {normalizeFormSituation(record.situacao_atendimento ?? linkedAgenda?.situacao_agendamento)}
                           </span>
                           <span>Status: {record.status_atendimento ?? "Nao informado"}</span>
+                          {recordHelpers(record.id).length > 0 ? (
+                            <span>
+                              Ajudantes: {recordHelpers(record.id).map((helper) => funcionarioName(helper.funcionario_id)).join(", ")}
+                            </span>
+                          ) : null}
                           <span>
                             Agendamento:{" "}
                             {linkedAgenda

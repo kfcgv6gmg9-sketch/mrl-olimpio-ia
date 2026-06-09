@@ -39,6 +39,21 @@ export type DiarioMovimentacao = {
   updated_at: string;
 };
 
+export type Funcionario = {
+  id: string;
+  nome: string;
+  ativo: boolean | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type DiarioAjudante = {
+  id?: string;
+  diario_id: string;
+  funcionario_id: string;
+  created_at?: string;
+};
+
 export type DespesaVeiculo = {
   id: string;
   data: string;
