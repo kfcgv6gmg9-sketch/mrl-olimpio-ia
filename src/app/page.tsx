@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { AuthGate } from "@/components/AuthGate";
@@ -8,23 +7,58 @@ import { Logo } from "@/components/Logo";
 import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { AppModule, canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
+import { DiarioAjudante, DiarioOperacional, Funcionario } from "@/types/database";
 
 type DashboardIndicators = {
-  agendaHoje: number;
-  agendaEmAndamento: number;
-  agendaFinalizados: number;
-  diarioHoje: number;
-  diarioSemana: number;
-  despesasMes: number;
+  abertos: number;
+  emAndamento: number;
+  aguardandoCliente: number;
+  aguardandoPeca: number;
+  finalizadosMes: number;
+  cancelados: number;
 };
 
 const initialIndicators: DashboardIndicators = {
-  agendaHoje: 0,
-  agendaEmAndamento: 0,
-  agendaFinalizados: 0,
-  diarioHoje: 0,
-  diarioSemana: 0,
-  despesasMes: 0
+  abertos: 0,
+  emAndamento: 0,
+  aguardandoCliente: 0,
+  aguardandoPeca: 0,
+  finalizadosMes: 0,
+  cancelados: 0
+};
+
+type DashboardPeriod = "today" | "week" | "month";
+
+type TechnicianIndicator = {
+  tecnico: string;
+  principal: number;
+  ajudante: number;
+};
+
+type RecentAttendance = {
+  id: string;
+  data: string;
+  cliente: string;
+  tecnico: string;
+  status: string;
+};
+
+const dashboardTechnicians = [
+  "Fernando",
+  "Reginaldo",
+  "Rodrigo",
+  "Murilo",
+  "Leonardo",
+  "Leandro",
+  "Yan",
+  "Kauan",
+  "Pedro"
+];
+
+const dashboardPeriodLabels: Record<DashboardPeriod, string> = {
+  today: "Hoje",
+  week: "Semana",
+  month: "Mês"
 };
 
 const modules = [
@@ -158,6 +192,9 @@ export default function HomePage() {
 function HomeDashboard() {
   const { email, metadata } = useCurrentAccess();
   const [indicators, setIndicators] = useState<DashboardIndicators>(initialIndicators);
+  const [technicianIndicators, setTechnicianIndicators] = useState<TechnicianIndicator[]>([]);
+  const [recentAttendances, setRecentAttendances] = useState<RecentAttendance[]>([]);
+  const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>("today");
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState("");
   const [selectedCityName, setSelectedCityName] = useState(selectableCities[0].name);
@@ -168,8 +205,7 @@ function HomeDashboard() {
   const visibleModules = modules.filter((module) => canAccessModule(email, metadata, module.id as AppModule));
 
   const loadDashboard = useCallback(async () => {
-    const today = formatDate(new Date());
-    const { weekStart, weekEnd } = currentWeekRange();
+    const { periodStart, periodEnd } = dashboardPeriodRange(dashboardPeriod);
     const { monthStart, monthEnd } = currentMonthRange();
 
     setDashboardLoading(true);
@@ -177,65 +213,74 @@ function HomeDashboard() {
 
     try {
       const [
-        agendaHojeResponse,
-        agendaEmAndamentoResponse,
-        agendaFinalizadosResponse,
-        diarioHojeResponse,
-        diarioSemanaResponse,
-        despesasMes
+        atendimentosResponse,
+        finalizadosMesResponse,
+        ajudantesResponse,
+        funcionariosResponse
       ] = await Promise.all([
         supabase
-          .from("agenda_servicos")
-          .select("id", { count: "exact", head: true })
-          .eq("data", today)
-          .neq("status_agendamento", "Cancelado"),
+          .from("diario_operacional")
+          .select("*")
+          .gte("data", periodStart)
+          .lte("data", periodEnd)
+          .order("data", { ascending: false })
+          .order("created_at", { ascending: false }),
         supabase
-          .from("agenda_servicos")
-          .select("id", { count: "exact", head: true })
-          .neq("status_agendamento", "Cancelado")
-          .or("bloqueado.is.false,bloqueado.is.null"),
+          .from("diario_operacional")
+          .select("*")
+          .eq("status_atendimento", "Finalizado")
+          .gte("data", monthStart)
+          .lte("data", monthEnd),
         supabase
-          .from("agenda_servicos")
-          .select("id", { count: "exact", head: true })
-          .eq("bloqueado", true),
-      supabase
-          .from("diario_movimentacoes")
-          .select("id", { count: "exact", head: true })
-          .eq("data", today),
+          .from("diario_ajudantes")
+          .select("*"),
         supabase
-          .from("diario_movimentacoes")
-          .select("id", { count: "exact", head: true })
-          .gte("data", weekStart)
-          .lte("data", weekEnd),
-        sumDespesasMes(monthStart, monthEnd)
+          .from("funcionarios")
+          .select("*")
+          .eq("ativo", true)
+          .order("nome", { ascending: true })
       ]);
 
       const errors = [
-        agendaHojeResponse.error,
-        agendaEmAndamentoResponse.error,
-        agendaFinalizadosResponse.error,
-        diarioHojeResponse.error,
-        diarioSemanaResponse.error
+        atendimentosResponse.error,
+        finalizadosMesResponse.error,
+        ajudantesResponse.error,
+        funcionariosResponse.error
       ].filter(Boolean);
 
       if (errors.length > 0) {
         setDashboardError(errors[0]?.message ?? "Nao foi possivel carregar os indicadores.");
       } else {
+        const attendances = (atendimentosResponse.data ?? []) as DiarioOperacional[];
+        const monthFinished = (finalizadosMesResponse.data ?? []) as DiarioOperacional[];
+        const helpers = (ajudantesResponse.data ?? []) as DiarioAjudante[];
+        const funcionarios = (funcionariosResponse.data ?? []) as Funcionario[];
+
         setIndicators({
-          agendaHoje: agendaHojeResponse.count ?? 0,
-          agendaEmAndamento: agendaEmAndamentoResponse.count ?? 0,
-          agendaFinalizados: agendaFinalizadosResponse.count ?? 0,
-          diarioHoje: diarioHojeResponse.count ?? 0,
-          diarioSemana: diarioSemanaResponse.count ?? 0,
-          despesasMes
+          abertos: countByStatus(attendances, "Aberto"),
+          emAndamento: countByStatus(attendances, "Em andamento"),
+          aguardandoCliente: countByStatus(attendances, "Aguardando Cliente"),
+          aguardandoPeca: countByStatus(attendances, "Aguardando Peça"),
+          finalizadosMes: monthFinished.length,
+          cancelados: countByStatus(attendances, "Cancelado")
         });
+        setTechnicianIndicators(buildTechnicianIndicators(attendances, helpers, funcionarios));
+        setRecentAttendances(
+          attendances.slice(0, 10).map((attendance) => ({
+            id: attendance.id,
+            data: attendance.data,
+            cliente: attendance.cliente,
+            tecnico: attendance.tecnico,
+            status: attendance.status_atendimento ?? "Aberto"
+          }))
+        );
       }
     } catch (error) {
       setDashboardError(error instanceof Error ? error.message : "Nao foi possivel carregar os indicadores.");
     } finally {
       setDashboardLoading(false);
     }
-  }, []);
+  }, [dashboardPeriod]);
 
   const loadWeather = useCallback(async () => {
     const selectedCity = selectableCities.find((city) => city.name === selectedCityName) ?? selectableCities[0];
@@ -287,22 +332,82 @@ function HomeDashboard() {
 
       <section className="panel dashboard-panel" aria-label="Dashboard inicial">
         <div className="section-heading">
-          <h2>Indicadores</h2>
-          <button className="secondary-button" onClick={loadDashboard} type="button">
-            Atualizar
-          </button>
+          <div>
+            <h2>Dashboard Operacional</h2>
+            <p className="muted-text">Indicadores da assistencia tecnica em tempo real.</p>
+          </div>
+          <div className="button-row">
+            {Object.entries(dashboardPeriodLabels).map(([period, label]) => (
+              <button
+                className={dashboardPeriod === period ? "primary-button" : "secondary-button"}
+                key={period}
+                onClick={() => setDashboardPeriod(period as DashboardPeriod)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+            <button className="secondary-button" onClick={loadDashboard} type="button">
+              Atualizar
+            </button>
+          </div>
         </div>
 
         {dashboardError ? <p className="error-text">{dashboardError}</p> : null}
         {dashboardLoading ? <p className="status-text">Carregando indicadores...</p> : null}
 
         <div className="dashboard-grid">
-          <DashboardCard label="Agenda" title="Agendados hoje" value={indicators.agendaHoje} />
-          <DashboardCard label="Agenda" title="Em andamento" value={indicators.agendaEmAndamento} />
-          <DashboardCard label="Agenda" title="Finalizados" value={indicators.agendaFinalizados} />
-          <DashboardCard label="Diario" title="Atendimentos hoje" value={indicators.diarioHoje} />
-          <DashboardCard label="Diario" title="Atendimentos da semana" value={indicators.diarioSemana} />
-          <DashboardCard label="Veiculos" title="Despesas do mes" value={formatCurrency(indicators.despesasMes)} />
+          <DashboardCard label="Diario" title="Atendimentos Abertos" value={indicators.abertos} />
+          <DashboardCard label="Diario" title="Em Andamento" value={indicators.emAndamento} />
+          <DashboardCard label="Diario" title="Aguardando Cliente" value={indicators.aguardandoCliente} />
+          <DashboardCard label="Diario" title="Aguardando Peça" value={indicators.aguardandoPeca} />
+          <DashboardCard label="Diario" title="Finalizados no mês" value={indicators.finalizadosMes} />
+          <DashboardCard label="Diario" title="Cancelados" value={indicators.cancelados} />
+        </div>
+
+        <div className="dashboard-detail-grid">
+          <section className="dashboard-subsection" aria-label="Indicadores por tecnico">
+            <h3>Indicadores por Técnico</h3>
+            <div className="dashboard-table-wrap">
+              <table className="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>Técnico</th>
+                    <th>Principal</th>
+                    <th>Ajudante</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {technicianIndicators.map((indicator) => (
+                    <tr key={indicator.tecnico}>
+                      <td>{indicator.tecnico}</td>
+                      <td>{indicator.principal}</td>
+                      <td>{indicator.ajudante}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="dashboard-subsection" aria-label="Ultimos atendimentos">
+            <h3>Últimos 10 atendimentos</h3>
+            <div className="record-list">
+              {recentAttendances.length === 0 && !dashboardLoading ? (
+                <p className="status-text">Nenhum atendimento encontrado.</p>
+              ) : null}
+              {recentAttendances.map((attendance) => (
+                <article className="record-card compact-record-card" key={attendance.id}>
+                  <div>
+                    <strong>{attendance.cliente}</strong>
+                    <span>Data: {attendance.data}</span>
+                    <span>Técnico: {attendance.tecnico}</span>
+                    <span>Status: {attendance.status}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
         </div>
       </section>
 
@@ -360,6 +465,34 @@ function DashboardCard({ label, title, value }: { label: string; title: string; 
       <strong>{value}</strong>
     </article>
   );
+}
+
+function countByStatus(records: DiarioOperacional[], status: string) {
+  return records.filter((record) => record.status_atendimento === status).length;
+}
+
+function buildTechnicianIndicators(
+  attendances: DiarioOperacional[],
+  helpers: DiarioAjudante[],
+  funcionarios: Funcionario[]
+) {
+  const attendancesById = new Map(attendances.map((attendance) => [attendance.id, attendance]));
+  const funcionarioName = (funcionarioId: string) =>
+    funcionarios.find((funcionario) => funcionario.id === funcionarioId)?.nome ?? funcionarioId;
+
+  return dashboardTechnicians.map((tecnico) => ({
+    tecnico,
+    principal: attendances.filter((attendance) => sameName(attendance.tecnico, tecnico)).length,
+    ajudante: helpers.filter((helper) => {
+      const attendance = attendancesById.get(helper.diario_id);
+
+      return Boolean(attendance) && sameName(funcionarioName(helper.funcionario_id), tecnico);
+    }).length
+  }));
+}
+
+function sameName(first: string, second: string) {
+  return first.trim().toLowerCase() === second.trim().toLowerCase();
 }
 
 function WeatherCityCard({ forecast, fixed = false }: { forecast: CityForecast; fixed?: boolean }) {
@@ -480,23 +613,29 @@ function currentMonthRange() {
   };
 }
 
-async function sumDespesasMes(monthStart: string, monthEnd: string) {
-  const { data, error } = await supabase
-    .from("despesas_veiculos")
-    .select("valor")
-    .gte("data", monthStart)
-    .lte("data", monthEnd);
+function dashboardPeriodRange(period: DashboardPeriod) {
+  if (period === "today") {
+    const today = formatDate(new Date());
 
-  if (error) {
-    throw new Error(error.message);
+    return {
+      periodStart: today,
+      periodEnd: today
+    };
   }
 
-  return (data ?? []).reduce((total, record) => total + Number(record.valor ?? 0), 0);
-}
+  if (period === "week") {
+    const { weekStart, weekEnd } = currentWeekRange();
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL"
-  }).format(value);
+    return {
+      periodStart: weekStart,
+      periodEnd: weekEnd
+    };
+  }
+
+  const { monthStart, monthEnd } = currentMonthRange();
+
+  return {
+    periodStart: monthStart,
+    periodEnd: monthEnd
+  };
 }
