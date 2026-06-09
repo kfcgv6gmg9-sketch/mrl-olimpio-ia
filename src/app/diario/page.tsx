@@ -97,6 +97,10 @@ function preventsNewMovement(record: DiarioOperacional) {
   return isDiarioLocked(record) || record.status_atendimento === "Cancelado";
 }
 
+function finalizadoBadge(record: DiarioOperacional) {
+  return isDiarioLocked(record) ? "ATENDIMENTO FINALIZADO" : "";
+}
+
 function agendaLabel(record: AgendaServico) {
   const city = record.cidade ? ` | ${record.cidade}` : "";
   const status = record.status_agendamento ? ` | ${record.status_agendamento}` : "";
@@ -391,8 +395,8 @@ export default function DiarioPage() {
       return;
     }
 
-    if (!movementForm.movimentacao_id && preventsNewMovement(record)) {
-      setError("Atendimento finalizado, bloqueado ou cancelado nao permite novas movimentacoes.");
+    if (preventsNewMovement(record)) {
+      setError("Atendimento finalizado, bloqueado ou cancelado nao permite alterar movimentacoes.");
       setSaving(false);
       return;
     }
@@ -573,6 +577,11 @@ export default function DiarioPage() {
       return;
     }
 
+    if (isDiarioLocked(record)) {
+      setError("Atendimento finalizado nao permite alterar movimentacoes.");
+      return;
+    }
+
     setMovementForm({
       movimentacao_id: movement.id,
       diario_id: movement.diario_id,
@@ -612,6 +621,14 @@ export default function DiarioPage() {
   }
 
   async function handleDelete(id: string) {
+    const currentRecord = records.find((record) => record.id === id);
+
+    if (currentRecord && isDiarioLocked(currentRecord)) {
+      setError("Atendimento finalizado nao pode ser excluido.");
+      setMessage("");
+      return;
+    }
+
     const confirmed = window.confirm("Excluir este registro do diario?");
 
     if (!confirmed) {
@@ -1006,11 +1023,13 @@ export default function DiarioPage() {
                     const linkedAgenda = agendaRecords.find((agenda) => agenda.id === record.agendamento_id);
                     const locked = isDiarioLocked(record);
                     const movementDisabled = preventsNewMovement(record);
+                    const badge = finalizadoBadge(record);
 
                     return (
                       <article className="record-card" key={record.id}>
                         <div>
                           <strong>{record.cliente}</strong>
+                          {badge ? <span className="finalized-badge">{badge}</span> : null}
                           <span>
                             Data original: {record.data} | {record.tecnico}
                           </span>
@@ -1048,7 +1067,7 @@ export default function DiarioPage() {
                                 <span>Status: {movement.status_atendimento}</span>
                                 <p>Serviço: {movement.servico_realizado}</p>
                                 {movement.observacao ? <p>{movement.observacao}</p> : null}
-                                {movement.source === "movimentacao" ? (
+                                {movement.source === "movimentacao" && !locked ? (
                                   <button
                                     className="secondary-button"
                                     onClick={() => handleEditMovement(movement)}
@@ -1078,7 +1097,12 @@ export default function DiarioPage() {
                           >
                             Nova visita
                           </button>
-                          <button className="danger-button" onClick={() => handleDelete(record.id)} type="button">
+                          <button
+                            className="danger-button"
+                            disabled={locked}
+                            onClick={() => handleDelete(record.id)}
+                            type="button"
+                          >
                             Excluir
                           </button>
                         </div>

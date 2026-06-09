@@ -347,6 +347,18 @@ select {
   font-size: 13px;
 }
 
+.record-card .finalized-badge {
+  display: inline-block;
+  width: fit-content;
+  border-radius: 999px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  padding: 5px 9px;
+}
+
 .record-card p {
   margin: 8px 0 0;
   color: var(--foreground);
