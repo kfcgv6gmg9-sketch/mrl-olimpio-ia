@@ -7,7 +7,13 @@ import { PermissionGate } from "@/components/PermissionGate";
 import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
-import { AgendaServico, DiarioAjudante, DiarioMovimentacao, DiarioOperacional, Funcionario } from "@/types/database";
+import {
+  AgendaServico,
+  DiarioMovimentacao,
+  DiarioMovimentacaoAjudante,
+  DiarioOperacional,
+  Funcionario
+} from "@/types/database";
 
 type DiarioReportRecord = {
   id: string;
@@ -146,7 +152,7 @@ export default function RelatoriosPage() {
     ] = await Promise.all([
       query,
       movementsQuery,
-      supabase.from("diario_ajudantes").select("*"),
+      supabase.from("diario_movimentacao_ajudantes").select("*"),
       supabase.from("funcionarios").select("*").eq("ativo", true).order("nome", { ascending: true })
     ]);
 
@@ -535,7 +541,7 @@ function diarioCsvRows(records: DiarioReportRecord[]) {
 function buildDiarioReportRows(
   diarios: DiarioOperacional[],
   movements: DiarioMovimentacao[],
-  helpers: DiarioAjudante[],
+  helpers: DiarioMovimentacaoAjudante[],
   funcionarios: Funcionario[],
   filters: DiarioFilters
 ): DiarioReportRecord[] {
@@ -543,21 +549,17 @@ function buildDiarioReportRows(
     funcionarios.find((funcionario) => funcionario.id === funcionarioId)?.nome ?? funcionarioId;
   const technicianFilter = filters.tecnico.trim().toLowerCase();
   const matchesTechnicianFilter = (name: string) => !technicianFilter || name.toLowerCase().includes(technicianFilter);
-  const helperRows = (
-    diario: DiarioOperacional,
-    rowKey: string,
-    base: Omit<DiarioReportRecord, "id" | "tecnico" | "funcao">
-  ) =>
+  const helperRows = (movement: DiarioMovimentacao, base: Omit<DiarioReportRecord, "id" | "tecnico" | "funcao">) =>
     helpers
-      .filter((helper) => helper.diario_id === diario.id)
+      .filter((helper) => helper.movimentacao_id === movement.id)
       .map((helper) => {
         const helperName = funcionarioName(helper.funcionario_id);
 
         return {
           ...base,
-          id: `${rowKey}-${helper.funcionario_id}`,
+          id: `${movement.id}-${helper.funcionario_id}`,
           tecnico: helperName,
-          funcao: `Ajudante de ${diario.tecnico}`
+          funcao: "Ajudante da visita"
         };
       });
 
@@ -579,10 +581,10 @@ function buildDiarioReportRows(
       {
         id: movement.id,
         ...base,
-        tecnico: diario.tecnico,
-        funcao: "Técnico principal"
+        tecnico: movement.tecnico,
+        funcao: "Técnico da visita"
       },
-      ...helperRows(diario, movement.id, base)
+      ...helperRows(movement, base)
     ];
 
     return rows.filter((record) => matchesTechnicianFilter(record.tecnico));
@@ -608,8 +610,7 @@ function buildDiarioReportRows(
           ...base,
           tecnico: record.tecnico,
           funcao: "Técnico principal"
-        },
-        ...helperRows(record, record.id, base)
+        }
       ];
 
       return rows.filter((row) => matchesTechnicianFilter(row.tecnico));

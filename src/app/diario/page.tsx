@@ -8,7 +8,14 @@ import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { logAudit } from "@/lib/audit";
 import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
-import { AgendaServico, DiarioAjudante, DiarioMovimentacao, DiarioOperacional, Funcionario } from "@/types/database";
+import {
+  AgendaServico,
+  DiarioAjudante,
+  DiarioMovimentacao,
+  DiarioMovimentacaoAjudante,
+  DiarioOperacional,
+  Funcionario
+} from "@/types/database";
 
 type DiarioForm = {
   data: string;
@@ -24,16 +31,20 @@ type DiarioForm = {
 };
 
 type MovimentacaoForm = {
+  movimentacao_id: string;
   diario_id: string;
   data: string;
   tecnico: string;
   servico_realizado: string;
   observacao: string;
   status_atendimento: string;
+  ajudantes: string[];
 };
 
 type HistoryItem = {
   id: string;
+  source: "principal" | "movimentacao";
+  diario_id: string;
   data: string;
   tecnico: string;
   status_atendimento: string;
@@ -42,12 +53,14 @@ type HistoryItem = {
 };
 
 const initialMovimentacaoForm: MovimentacaoForm = {
+  movimentacao_id: "",
   diario_id: "",
   data: "",
   tecnico: "",
   servico_realizado: "",
   observacao: "",
-  status_atendimento: "Aberto"
+  status_atendimento: "Aberto",
+  ajudantes: []
 };
 
 const statusAtendimento = [
@@ -94,6 +107,8 @@ function agendaLabel(record: AgendaServico) {
 function principalHistoryItem(record: DiarioOperacional): HistoryItem {
   return {
     id: `principal-${record.id}`,
+    source: "principal",
+    diario_id: record.id,
     data: record.data,
     tecnico: record.tecnico,
     servico_realizado: record.servico_realizado,
@@ -136,6 +151,7 @@ export default function DiarioPage() {
   const [agendaRecords, setAgendaRecords] = useState<AgendaServico[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [ajudantes, setAjudantes] = useState<DiarioAjudante[]>([]);
+  const [movementHelpers, setMovementHelpers] = useState<DiarioMovimentacaoAjudante[]>([]);
   const [form, setForm] = useState<DiarioForm>(createInitialForm);
   const [movementForm, setMovementForm] = useState<MovimentacaoForm>(initialMovimentacaoForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -156,7 +172,14 @@ export default function DiarioPage() {
     setLoading(true);
     setError("");
 
-    const [diarioResponse, movementResponse, agendaResponse, funcionariosResponse, ajudantesResponse] = await Promise.all([
+    const [
+      diarioResponse,
+      movementResponse,
+      agendaResponse,
+      funcionariosResponse,
+      ajudantesResponse,
+      movementHelpersResponse
+    ] = await Promise.all([
       supabase
         .from("diario_operacional")
         .select("*")
@@ -179,6 +202,9 @@ export default function DiarioPage() {
         .order("nome", { ascending: true }),
       supabase
         .from("diario_ajudantes")
+        .select("*"),
+      supabase
+        .from("diario_movimentacao_ajudantes")
         .select("*")
     ]);
 
@@ -213,6 +239,13 @@ export default function DiarioPage() {
       setAjudantes([]);
     } else {
       setAjudantes(ajudantesResponse.data ?? []);
+    }
+
+    if (movementHelpersResponse.error) {
+      setError((currentError) => currentError || movementHelpersResponse.error.message);
+      setMovementHelpers([]);
+    } else {
+      setMovementHelpers(movementHelpersResponse.data ?? []);
     }
 
     setLoading(false);
@@ -358,26 +391,76 @@ export default function DiarioPage() {
       return;
     }
 
-    if (preventsNewMovement(record)) {
+    if (!movementForm.movimentacao_id && preventsNewMovement(record)) {
       setError("Atendimento finalizado, bloqueado ou cancelado nao permite novas movimentacoes.");
       setSaving(false);
       return;
     }
 
     const status = movementForm.status_atendimento || "Aberto";
-    const { error: movementError } = await supabase.from("diario_movimentacoes").insert({
+    const movementPayload = {
       diario_id: movementForm.diario_id,
       data: movementForm.data,
       tecnico: movementForm.tecnico.trim(),
       servico_realizado: movementForm.servico_realizado.trim(),
       observacao: movementForm.observacao.trim() || null,
       status_atendimento: status
-    });
+    };
+    const movementResponse = movementForm.movimentacao_id
+      ? await supabase
+          .from("diario_movimentacoes")
+          .update(movementPayload)
+          .eq("id", movementForm.movimentacao_id)
+          .select("id")
+          .single()
+      : await supabase
+          .from("diario_movimentacoes")
+          .insert(movementPayload)
+          .select("id")
+          .single();
 
-    if (movementError) {
-      setError(movementError.message);
+    if (movementResponse.error) {
+      setError(movementResponse.error.message);
       setSaving(false);
       return;
+    }
+
+    const movementId = movementResponse.data?.id ?? movementForm.movimentacao_id;
+
+    if (movementId) {
+      const { error: deleteHelpersError } = await supabase
+        .from("diario_movimentacao_ajudantes")
+        .delete()
+        .eq("movimentacao_id", movementId);
+
+      if (deleteHelpersError) {
+        setError(`Movimentacao salva, mas nao foi possivel atualizar ajudantes: ${deleteHelpersError.message}`);
+        await loadRecords();
+        setSaving(false);
+        return;
+      }
+
+      const selectedHelpers = Array.from(new Set(movementForm.ajudantes)).filter((funcionarioId) => {
+        const funcionario = funcionarios.find((currentFuncionario) => currentFuncionario.id === funcionarioId);
+
+        return funcionario ? !funcionarioMatchesTecnico(funcionario, movementForm.tecnico) : false;
+      });
+
+      if (selectedHelpers.length > 0) {
+        const { error: insertHelpersError } = await supabase.from("diario_movimentacao_ajudantes").insert(
+          selectedHelpers.map((funcionarioId) => ({
+            movimentacao_id: movementId,
+            funcionario_id: funcionarioId
+          }))
+        );
+
+        if (insertHelpersError) {
+          setError(`Movimentacao salva, mas nao foi possivel gravar ajudantes: ${insertHelpersError.message}`);
+          await loadRecords();
+          setSaving(false);
+          return;
+        }
+      }
     }
 
     const { error: updateStatusError } = await supabase
@@ -413,11 +496,11 @@ export default function DiarioPage() {
 
     await logAudit({
       modulo: "Diário",
-      acao: status === "Finalizado" ? "Finalizar" : status === "Cancelado" ? "Cancelar" : "Criar",
+      acao: status === "Finalizado" ? "Finalizar" : status === "Cancelado" ? "Cancelar" : movementForm.movimentacao_id ? "Editar" : "Criar",
       registro_afetado: movementForm.diario_id
     });
     setMovementForm(initialMovimentacaoForm);
-    setMessage(status === "Finalizado" ? "Atendimento finalizado." : "Movimentacao adicionada.");
+    setMessage(status === "Finalizado" ? "Atendimento finalizado." : movementForm.movimentacao_id ? "Movimentacao atualizada." : "Movimentacao adicionada.");
     await loadRecords();
     setSaving(false);
   }
@@ -465,12 +548,42 @@ export default function DiarioPage() {
     }
 
     setMovementForm({
+      movimentacao_id: "",
       diario_id: record.id,
       data: "",
       tecnico: record.tecnico,
       servico_realizado: "",
       observacao: "",
-      status_atendimento: "Aberto"
+      status_atendimento: "Aberto",
+      ajudantes: []
+    });
+    setMessage("");
+    setError("");
+  }
+
+  function handleEditMovement(movement: HistoryItem) {
+    if (movement.source !== "movimentacao") {
+      return;
+    }
+
+    const record = records.find((currentRecord) => currentRecord.id === movement.diario_id);
+
+    if (!record) {
+      setError("Atendimento da movimentacao nao encontrado.");
+      return;
+    }
+
+    setMovementForm({
+      movimentacao_id: movement.id,
+      diario_id: movement.diario_id,
+      data: movement.data,
+      tecnico: movement.tecnico,
+      servico_realizado: movement.servico_realizado,
+      observacao: movement.observacao ?? "",
+      status_atendimento: movement.status_atendimento,
+      ajudantes: movementHelpers
+        .filter((helper) => helper.movimentacao_id === movement.id)
+        .map((helper) => helper.funcionario_id)
     });
     setMessage("");
     setError("");
@@ -528,6 +641,10 @@ export default function DiarioPage() {
     const visitItems = movements
       .filter((movement) => movement.diario_id === record.id)
       .filter((movement) => !isInitialMovementCopy(record, movement))
+      .map((movement) => ({
+        ...movement,
+        source: "movimentacao" as const
+      }))
       .sort((first, second) => {
         const dateComparison = first.data.localeCompare(second.data);
 
@@ -549,11 +666,29 @@ export default function DiarioPage() {
     return ajudantes.filter((helper) => helper.diario_id === recordId);
   }
 
+  function movementHelperNames(movementId: string) {
+    return movementHelpers
+      .filter((helper) => helper.movimentacao_id === movementId)
+      .map((helper) => funcionarioName(helper.funcionario_id));
+  }
+
   function handleTecnicoChange(tecnico: string) {
     setForm({
       ...form,
       tecnico,
       ajudantes: form.ajudantes.filter((funcionarioId) => {
+        const funcionario = funcionarios.find((currentFuncionario) => currentFuncionario.id === funcionarioId);
+
+        return funcionario ? !funcionarioMatchesTecnico(funcionario, tecnico) : true;
+      })
+    });
+  }
+
+  function handleMovementTecnicoChange(tecnico: string) {
+    setMovementForm({
+      ...movementForm,
+      tecnico,
+      ajudantes: movementForm.ajudantes.filter((funcionarioId) => {
         const funcionario = funcionarios.find((currentFuncionario) => currentFuncionario.id === funcionarioId);
 
         return funcionario ? !funcionarioMatchesTecnico(funcionario, tecnico) : true;
@@ -569,6 +704,9 @@ export default function DiarioPage() {
     ].filter(Boolean))
   );
   const ajudanteOptions = funcionarios.filter((funcionario) => !funcionarioMatchesTecnico(funcionario, form.tecnico));
+  const movementHelperOptions = funcionarios.filter(
+    (funcionario) => !funcionarioMatchesTecnico(funcionario, movementForm.tecnico)
+  );
 
   return (
     <main className="app-shell">
@@ -729,7 +867,7 @@ export default function DiarioPage() {
 
                 {movementForm.diario_id ? (
                   <form className="form-grid" onSubmit={handleAddMovement}>
-                    <h2>Nova movimentacao</h2>
+                    <h2>{movementForm.movimentacao_id ? "Editar movimentacao" : "Nova movimentacao"}</h2>
 
                     <label>
                       Data da visita
@@ -746,12 +884,29 @@ export default function DiarioPage() {
                       <select
                         required
                         value={movementForm.tecnico}
-                        onChange={(event) => setMovementForm({ ...movementForm, tecnico: event.target.value })}
+                        onChange={(event) => handleMovementTecnicoChange(event.target.value)}
                       >
                         <option value="">Selecione</option>
                         {tecnicoOptions.map((tecnico) => (
                           <option key={tecnico} value={tecnico}>
                             {tecnico}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      Ajudantes
+                      <select
+                        multiple
+                        value={movementForm.ajudantes}
+                        onChange={(event) =>
+                          setMovementForm({ ...movementForm, ajudantes: selectValues(event.currentTarget) })
+                        }
+                      >
+                        {movementHelperOptions.map((funcionario) => (
+                          <option key={funcionario.id} value={funcionario.id}>
+                            {funcionario.nome}
                           </option>
                         ))}
                       </select>
@@ -797,7 +952,7 @@ export default function DiarioPage() {
 
                     <div className="button-row">
                       <button className="primary-button" disabled={saving} type="submit">
-                        {saving ? "Salvando..." : "Adicionar visita"}
+                        {saving ? "Salvando..." : movementForm.movimentacao_id ? "Atualizar visita" : "Adicionar visita"}
                       </button>
                       <button
                         className="secondary-button"
@@ -866,9 +1021,21 @@ export default function DiarioPage() {
                                 <strong>
                                   {movement.data} - {movement.tecnico}
                                 </strong>
+                                {movement.source === "movimentacao" && movementHelperNames(movement.id).length > 0 ? (
+                                  <span>Ajudantes: {movementHelperNames(movement.id).join(", ")}</span>
+                                ) : null}
                                 <span>Status: {movement.status_atendimento}</span>
                                 <p>Serviço: {movement.servico_realizado}</p>
                                 {movement.observacao ? <p>{movement.observacao}</p> : null}
+                                {movement.source === "movimentacao" ? (
+                                  <button
+                                    className="secondary-button"
+                                    onClick={() => handleEditMovement(movement)}
+                                    type="button"
+                                  >
+                                    Editar visita
+                                  </button>
+                                ) : null}
                               </div>
                             ))}
                           </div>
@@ -906,4 +1073,5 @@ export default function DiarioPage() {
     </main>
   );
 }
+
 

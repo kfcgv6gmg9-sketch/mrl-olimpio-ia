@@ -67,6 +67,13 @@ export type DiarioAjudante = {
   created_at?: string;
 };
 
+export type DiarioMovimentacaoAjudante = {
+  id?: string;
+  movimentacao_id: string;
+  funcionario_id: string;
+  created_at?: string;
+};
+
 export type DespesaVeiculo = {
   id: string;
   data: string;

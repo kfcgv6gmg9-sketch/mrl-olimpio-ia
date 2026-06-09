@@ -73,6 +73,14 @@ create table if not exists public.diario_movimentacoes (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.diario_movimentacao_ajudantes (
+  id uuid primary key default gen_random_uuid(),
+  movimentacao_id uuid not null references public.diario_movimentacoes(id) on delete cascade,
+  funcionario_id uuid not null references public.funcionarios(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (movimentacao_id, funcionario_id)
+);
+
 -- =========================
 -- AUDITORIA
 -- =========================
