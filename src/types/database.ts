@@ -72,8 +72,11 @@ export type DespesaVeiculo = {
   data: string;
   placa: string;
   veiculo: string;
-  tipo_despesa: "Combustível" | "Pedágio" | "Manutenção" | "Pneus" | "Outros";
+  motorista: string | null;
+  tipo_despesa: "Abastecimento" | "Manutenção" | "Lavagem" | "Pedágio" | "Outros";
   valor: number;
+  quilometragem: number | null;
+  descricao: string | null;
   observacao: string | null;
   created_at: string;
   updated_at: string;

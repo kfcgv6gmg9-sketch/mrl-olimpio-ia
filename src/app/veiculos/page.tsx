@@ -10,22 +10,25 @@ import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
 import { DespesaVeiculo } from "@/types/database";
 
-const expenseTypes = ["Combustível", "Pedágio", "Manutenção", "Pneus", "Outros"] as const;
+const movementTypes = ["Abastecimento", "Manutenção", "Lavagem", "Pedágio", "Outros"] as const;
 
-type ExpenseType = (typeof expenseTypes)[number];
+type MovementType = (typeof movementTypes)[number];
 
 type VehicleForm = {
   data: string;
   placa: string;
   veiculo: string;
-  tipo_despesa: ExpenseType | "";
+  motorista: string;
+  tipo_despesa: MovementType | "";
   valor: string;
+  quilometragem: string;
+  descricao: string;
   observacao: string;
 };
 
 type VehicleFilters = {
   placa: string;
-  veiculo: string;
+  motorista: string;
   dataInicio: string;
   dataFim: string;
   tipo_despesa: string;
@@ -35,14 +38,17 @@ const initialForm: VehicleForm = {
   data: "",
   placa: "",
   veiculo: "",
+  motorista: "",
   tipo_despesa: "",
   valor: "",
+  quilometragem: "",
+  descricao: "",
   observacao: ""
 };
 
 const initialFilters: VehicleFilters = {
   placa: "",
-  veiculo: "",
+  motorista: "",
   dataInicio: "",
   dataFim: "",
   tipo_despesa: ""
@@ -74,8 +80,8 @@ export default function VeiculosPage() {
       query = query.ilike("placa", `%${currentFilters.placa.trim()}%`);
     }
 
-    if (currentFilters.veiculo.trim()) {
-      query = query.ilike("veiculo", `%${currentFilters.veiculo.trim()}%`);
+    if (currentFilters.motorista.trim()) {
+      query = query.ilike("motorista", `%${currentFilters.motorista.trim()}%`);
     }
 
     if (currentFilters.dataInicio) {
@@ -95,7 +101,7 @@ export default function VeiculosPage() {
     if (listError) {
       setError(listError.message);
     } else {
-      setRecords(data ?? []);
+      setRecords((data ?? []) as DespesaVeiculo[]);
     }
 
     setLoading(false);
@@ -108,10 +114,10 @@ export default function VeiculosPage() {
   }, [accessLoading, canAccessVeiculos, loadRecords]);
 
   const totals = useMemo(() => {
-    const initialTotals = expenseTypes.reduce<Record<ExpenseType, number>>((accumulator, type) => {
+    const initialTotals = movementTypes.reduce<Record<MovementType, number>>((accumulator, type) => {
       accumulator[type] = 0;
       return accumulator;
-    }, {} as Record<ExpenseType, number>);
+    }, {} as Record<MovementType, number>);
 
     return records.reduce(
       (accumulator, record) => {
@@ -133,8 +139,11 @@ export default function VeiculosPage() {
       data: form.data,
       placa: form.placa.trim().toUpperCase(),
       veiculo: form.veiculo.trim(),
+      motorista: form.motorista.trim() || null,
       tipo_despesa: form.tipo_despesa,
       valor: Number(form.valor),
+      quilometragem: form.quilometragem ? Number(form.quilometragem) : null,
+      descricao: form.descricao.trim() || null,
       observacao: form.observacao.trim() || null
     };
 
@@ -152,7 +161,7 @@ export default function VeiculosPage() {
       });
       setForm(initialForm);
       setEditingId(null);
-      setMessage(editingId ? "Despesa atualizada." : "Despesa salva.");
+      setMessage(editingId ? "Movimentação atualizada." : "Movimentação salva.");
       await loadRecords(filters);
     }
 
@@ -165,8 +174,11 @@ export default function VeiculosPage() {
       data: record.data,
       placa: record.placa,
       veiculo: record.veiculo,
+      motorista: record.motorista ?? "",
       tipo_despesa: record.tipo_despesa,
       valor: String(record.valor),
+      quilometragem: record.quilometragem ? String(record.quilometragem) : "",
+      descricao: record.descricao ?? "",
       observacao: record.observacao ?? ""
     });
     setMessage("");
@@ -181,7 +193,7 @@ export default function VeiculosPage() {
   }
 
   async function handleDelete(id: string) {
-    const confirmed = window.confirm("Excluir esta despesa de veiculo?");
+    const confirmed = window.confirm("Excluir esta movimentação de veículo?");
 
     if (!confirmed) {
       return;
@@ -200,7 +212,7 @@ export default function VeiculosPage() {
         acao: "Excluir",
         registro_afetado: id
       });
-      setMessage("Despesa excluida.");
+      setMessage("Movimentação excluída.");
       await loadRecords(filters);
     }
   }
@@ -217,24 +229,39 @@ export default function VeiculosPage() {
 
   function exportCsv() {
     downloadCsv(
-      "despesas-veiculos.csv",
-      ["data", "placa", "veiculo", "tipo_despesa", "valor", "observacao"],
-      records.map((record) => ({
-        data: record.data,
-        placa: record.placa,
-        veiculo: record.veiculo,
-        tipo_despesa: record.tipo_despesa,
-        valor: formatCurrency(record.valor),
-        observacao: record.observacao ?? ""
-      }))
+      "movimentacoes-veiculos.csv",
+      [
+        "data",
+        "placa",
+        "veiculo",
+        "motorista",
+        "tipo_despesa",
+        "valor",
+        "quilometragem",
+        "descricao",
+        "observacao"
+      ],
+      records.map(vehicleCsvRow)
     );
   }
 
-  function exportPdf() {
+  function exportReportByPlate() {
     printPdfReport({
+      title: "Relatório por Placa",
       period: formatPeriod(filters),
       placa: filters.placa.trim() || "Todas",
-      veiculo: filters.veiculo.trim() || "Todos",
+      motorista: filters.motorista.trim() || "Todos",
+      tipoDespesa: filters.tipo_despesa || "Todos",
+      rows: records
+    });
+  }
+
+  function exportReportByPeriod() {
+    printPdfReport({
+      title: "Relatório por Período",
+      period: formatPeriod(filters),
+      placa: filters.placa.trim() || "Todas",
+      motorista: filters.motorista.trim() || "Todos",
       tipoDespesa: filters.tipo_despesa || "Todos",
       rows: records
     });
@@ -247,169 +274,77 @@ export default function VeiculosPage() {
           <PermissionGate module="veiculos">
             <header className="topbar">
               <div className="brand">
-                <h1>Veiculos</h1>
-                <p>Controle de despesas operacionais por veiculo.</p>
+                <h1>Veículos</h1>
+                <p>Controle de despesas e movimentações de veículos.</p>
               </div>
               <AppNav />
             </header>
 
-            <section className="metric-grid" aria-label="Dashboard de despesas">
-            {expenseTypes.map((type) => (
-              <article className="metric-card" key={type}>
-                <span>Total {type}</span>
-                <strong>{formatCurrency(totals.byType[type])}</strong>
+            <section className="metric-grid" aria-label="Resumo de movimentações">
+              {movementTypes.map((type) => (
+                <article className="metric-card" key={type}>
+                  <span>Total {type}</span>
+                  <strong>{formatCurrency(totals.byType[type])}</strong>
+                </article>
+              ))}
+              <article className="metric-card">
+                <span>Total Geral</span>
+                <strong>{formatCurrency(totals.total)}</strong>
               </article>
-            ))}
-            <article className="metric-card">
-              <span>Total Geral</span>
-              <strong>{formatCurrency(totals.total)}</strong>
-            </article>
             </section>
 
             <section className="work-layout">
-            <form className="panel form-grid" onSubmit={handleSubmit}>
-              <h2>{editingId ? "Editar despesa" : "Nova despesa"}</h2>
+              <form className="panel form-grid" onSubmit={handleSubmit}>
+                <h2>{editingId ? "Editar movimentação" : "Nova movimentação"}</h2>
 
-              <label>
-                Data
-                <input
-                  required
-                  type="date"
-                  value={form.data}
-                  onChange={(event) => setForm({ ...form, data: event.target.value })}
-                />
-              </label>
+                <label>
+                  Data
+                  <input
+                    required
+                    type="date"
+                    value={form.data}
+                    onChange={(event) => setForm({ ...form, data: event.target.value })}
+                  />
+                </label>
 
-              <label>
-                Placa
-                <input
-                  required
-                  type="text"
-                  value={form.placa}
-                  onChange={(event) => setForm({ ...form, placa: event.target.value })}
-                />
-              </label>
-
-              <label>
-                Veiculo
-                <input
-                  required
-                  type="text"
-                  value={form.veiculo}
-                  onChange={(event) => setForm({ ...form, veiculo: event.target.value })}
-                />
-              </label>
-
-              <label>
-                Tipo de Despesa
-                <select
-                  required
-                  value={form.tipo_despesa}
-                  onChange={(event) => setForm({ ...form, tipo_despesa: event.target.value as ExpenseType | "" })}
-                >
-                  <option value="">Selecione</option>
-                  {expenseTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Valor
-                <input
-                  min="0"
-                  required
-                  step="0.01"
-                  type="number"
-                  value={form.valor}
-                  onChange={(event) => setForm({ ...form, valor: event.target.value })}
-                />
-              </label>
-
-              <label>
-                Observacao
-                <textarea
-                  rows={4}
-                  value={form.observacao}
-                  onChange={(event) => setForm({ ...form, observacao: event.target.value })}
-                />
-              </label>
-
-              {error ? <p className="error-text">{error}</p> : null}
-              {message ? <p className="success-text">{message}</p> : null}
-
-              <div className="button-row">
-                <button className="primary-button" disabled={saving} type="submit">
-                  {saving ? "Salvando..." : editingId ? "Atualizar" : "Salvar"}
-                </button>
-                {editingId ? (
-                  <button className="secondary-button" onClick={handleCancelEdit} type="button">
-                    Cancelar
-                  </button>
-                ) : null}
-              </div>
-            </form>
-
-            <section className="panel report-panel">
-              <div className="section-heading">
-                <h2>Despesas cadastradas</h2>
-                <div className="button-row">
-                  <button className="secondary-button" onClick={exportCsv} type="button">
-                    Exportar CSV
-                  </button>
-                  <button className="secondary-button" onClick={exportPdf} type="button">
-                    Exportar PDF
-                  </button>
-                </div>
-              </div>
-
-              <form className="filter-grid" onSubmit={handleFilter}>
                 <label>
                   Placa
                   <input
+                    required
                     type="text"
-                    value={filters.placa}
-                    onChange={(event) => setFilters({ ...filters, placa: event.target.value })}
+                    value={form.placa}
+                    onChange={(event) => setForm({ ...form, placa: event.target.value })}
                   />
                 </label>
 
                 <label>
-                  Veiculo
+                  Veículo
+                  <input
+                    required
+                    type="text"
+                    value={form.veiculo}
+                    onChange={(event) => setForm({ ...form, veiculo: event.target.value })}
+                  />
+                </label>
+
+                <label>
+                  Motorista
                   <input
                     type="text"
-                    value={filters.veiculo}
-                    onChange={(event) => setFilters({ ...filters, veiculo: event.target.value })}
-                  />
-                </label>
-
-                <label>
-                  Inicio
-                  <input
-                    type="date"
-                    value={filters.dataInicio}
-                    onChange={(event) => setFilters({ ...filters, dataInicio: event.target.value })}
-                  />
-                </label>
-
-                <label>
-                  Fim
-                  <input
-                    type="date"
-                    value={filters.dataFim}
-                    onChange={(event) => setFilters({ ...filters, dataFim: event.target.value })}
+                    value={form.motorista}
+                    onChange={(event) => setForm({ ...form, motorista: event.target.value })}
                   />
                 </label>
 
                 <label>
                   Tipo
                   <select
-                    value={filters.tipo_despesa}
-                    onChange={(event) => setFilters({ ...filters, tipo_despesa: event.target.value })}
+                    required
+                    value={form.tipo_despesa}
+                    onChange={(event) => setForm({ ...form, tipo_despesa: event.target.value as MovementType | "" })}
                   >
-                    <option value="">Todos</option>
-                    {expenseTypes.map((type) => (
+                    <option value="">Selecione</option>
+                    {movementTypes.map((type) => (
                       <option key={type} value={type}>
                         {type}
                       </option>
@@ -417,43 +352,172 @@ export default function VeiculosPage() {
                   </select>
                 </label>
 
+                <label>
+                  Valor
+                  <input
+                    min="0"
+                    required
+                    step="0.01"
+                    type="number"
+                    value={form.valor}
+                    onChange={(event) => setForm({ ...form, valor: event.target.value })}
+                  />
+                </label>
+
+                <label>
+                  Quilometragem
+                  <input
+                    min="0"
+                    step="1"
+                    type="number"
+                    value={form.quilometragem}
+                    onChange={(event) => setForm({ ...form, quilometragem: event.target.value })}
+                  />
+                </label>
+
+                <label>
+                  Descrição
+                  <textarea
+                    rows={3}
+                    value={form.descricao}
+                    onChange={(event) => setForm({ ...form, descricao: event.target.value })}
+                  />
+                </label>
+
+                <label>
+                  Observações
+                  <textarea
+                    rows={3}
+                    value={form.observacao}
+                    onChange={(event) => setForm({ ...form, observacao: event.target.value })}
+                  />
+                </label>
+
+                {error ? <p className="error-text">{error}</p> : null}
+                {message ? <p className="success-text">{message}</p> : null}
+
                 <div className="button-row">
-                  <button className="primary-button" type="submit">
-                    Filtrar
+                  <button className="primary-button" disabled={saving} type="submit">
+                    {saving ? "Salvando..." : editingId ? "Atualizar" : "Salvar"}
                   </button>
-                  <button className="secondary-button" onClick={clearFilters} type="button">
-                    Limpar
-                  </button>
+                  {editingId ? (
+                    <button className="secondary-button" onClick={handleCancelEdit} type="button">
+                      Cancelar
+                    </button>
+                  ) : null}
                 </div>
               </form>
 
-              {loading ? <p className="status-text">Carregando despesas...</p> : null}
-              {!loading && records.length === 0 ? <p className="status-text">Nenhuma despesa cadastrada.</p> : null}
+              <section className="panel report-panel">
+                <div className="section-heading">
+                  <h2>Movimentações cadastradas</h2>
+                  <div className="button-row">
+                    <button className="secondary-button" onClick={exportCsv} type="button">
+                      Exportar CSV
+                    </button>
+                    <button className="secondary-button" onClick={exportReportByPlate} type="button">
+                      Relatório por placa
+                    </button>
+                    <button className="secondary-button" onClick={exportReportByPeriod} type="button">
+                      Relatório por período
+                    </button>
+                  </div>
+                </div>
 
-              <div className="record-list">
-                {records.map((record) => (
-                  <article className="record-card" key={record.id}>
-                    <div>
-                      <strong>
-                        {record.veiculo} | {record.placa}
-                      </strong>
-                      <span>
-                        {record.data} | {record.tipo_despesa} | {formatCurrency(record.valor)}
-                      </span>
-                      {record.observacao ? <p>{record.observacao}</p> : null}
-                    </div>
-                    <div className="button-row">
-                      <button className="secondary-button" onClick={() => handleEdit(record)} type="button">
-                        Editar
-                      </button>
-                      <button className="danger-button" onClick={() => handleDelete(record.id)} type="button">
-                        Excluir
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
+                <form className="filter-grid" onSubmit={handleFilter}>
+                  <label>
+                    Placa
+                    <input
+                      type="text"
+                      value={filters.placa}
+                      onChange={(event) => setFilters({ ...filters, placa: event.target.value })}
+                    />
+                  </label>
+
+                  <label>
+                    Motorista
+                    <input
+                      type="text"
+                      value={filters.motorista}
+                      onChange={(event) => setFilters({ ...filters, motorista: event.target.value })}
+                    />
+                  </label>
+
+                  <label>
+                    Início
+                    <input
+                      type="date"
+                      value={filters.dataInicio}
+                      onChange={(event) => setFilters({ ...filters, dataInicio: event.target.value })}
+                    />
+                  </label>
+
+                  <label>
+                    Fim
+                    <input
+                      type="date"
+                      value={filters.dataFim}
+                      onChange={(event) => setFilters({ ...filters, dataFim: event.target.value })}
+                    />
+                  </label>
+
+                  <label>
+                    Tipo
+                    <select
+                      value={filters.tipo_despesa}
+                      onChange={(event) => setFilters({ ...filters, tipo_despesa: event.target.value })}
+                    >
+                      <option value="">Todos</option>
+                      {movementTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="button-row">
+                    <button className="primary-button" type="submit">
+                      Filtrar
+                    </button>
+                    <button className="secondary-button" onClick={clearFilters} type="button">
+                      Limpar
+                    </button>
+                  </div>
+                </form>
+
+                {loading ? <p className="status-text">Carregando movimentações...</p> : null}
+                {!loading && records.length === 0 ? (
+                  <p className="status-text">Nenhuma movimentação cadastrada.</p>
+                ) : null}
+
+                <div className="record-list">
+                  {records.map((record) => (
+                    <article className="record-card" key={record.id}>
+                      <div>
+                        <strong>
+                          {record.veiculo} | {record.placa}
+                        </strong>
+                        <span>
+                          {record.data} | {record.tipo_despesa} | {formatCurrency(record.valor)}
+                        </span>
+                        <span>Motorista: {record.motorista ?? "Não informado"}</span>
+                        <span>Quilometragem: {formatMileage(record.quilometragem)}</span>
+                        {record.descricao ? <p>{record.descricao}</p> : null}
+                        {record.observacao ? <p>{record.observacao}</p> : null}
+                      </div>
+                      <div className="button-row">
+                        <button className="secondary-button" onClick={() => handleEdit(record)} type="button">
+                          Editar
+                        </button>
+                        <button className="danger-button" onClick={() => handleDelete(record.id)} type="button">
+                          Excluir
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
             </section>
           </PermissionGate>
         </AuthGate>
@@ -462,11 +526,29 @@ export default function VeiculosPage() {
   );
 }
 
+function vehicleCsvRow(record: DespesaVeiculo) {
+  return {
+    data: record.data,
+    placa: record.placa,
+    veiculo: record.veiculo,
+    motorista: record.motorista ?? "",
+    tipo_despesa: record.tipo_despesa,
+    valor: formatCurrency(record.valor),
+    quilometragem: record.quilometragem ? String(record.quilometragem) : "",
+    descricao: record.descricao ?? "",
+    observacao: record.observacao ?? ""
+  };
+}
+
 function formatCurrency(value: number | string) {
   return Number(value).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL"
   });
+}
+
+function formatMileage(value: number | null) {
+  return value === null ? "Não informado" : `${Number(value).toLocaleString("pt-BR")} km`;
 }
 
 function downloadCsv(filename: string, headers: string[], rows: Record<string, string>[]) {
@@ -507,15 +589,17 @@ function formatPeriod(filters: VehicleFilters) {
 }
 
 function printPdfReport({
+  title,
   period,
   placa,
-  veiculo,
+  motorista,
   tipoDespesa,
   rows
 }: {
+  title: string;
   period: string;
   placa: string;
-  veiculo: string;
+  motorista: string;
   tipoDespesa: string;
   rows: DespesaVeiculo[];
 }) {
@@ -534,21 +618,24 @@ function printPdfReport({
               <td>${escapeHtml(row.data)}</td>
               <td>${escapeHtml(row.placa)}</td>
               <td>${escapeHtml(row.veiculo)}</td>
+              <td>${escapeHtml(row.motorista ?? "")}</td>
               <td>${escapeHtml(row.tipo_despesa)}</td>
               <td>${escapeHtml(formatCurrency(row.valor))}</td>
+              <td>${escapeHtml(formatMileage(row.quilometragem))}</td>
+              <td>${escapeHtml(row.descricao ?? "")}</td>
               <td>${escapeHtml(row.observacao ?? "")}</td>
             </tr>
           `
         )
         .join("")
-    : '<tr><td colspan="6">Nenhum registro encontrado.</td></tr>';
+    : '<tr><td colspan="9">Nenhum registro encontrado.</td></tr>';
 
   reportWindow.document.write(`
     <!doctype html>
     <html lang="pt-BR">
       <head>
         <meta charset="utf-8" />
-        <title>Relatorio de Veiculos</title>
+        <title>${escapeHtml(title)}</title>
         <style>
           body {
             color: #172033;
@@ -585,20 +672,23 @@ function printPdfReport({
         </style>
       </head>
       <body>
-        <h1>Relatorio de Veiculos</h1>
-        <p><strong>Periodo filtrado:</strong> ${escapeHtml(period)}</p>
+        <h1>${escapeHtml(title)}</h1>
+        <p><strong>Período filtrado:</strong> ${escapeHtml(period)}</p>
         <p><strong>Placa filtrada:</strong> ${escapeHtml(placa)}</p>
-        <p><strong>Veiculo filtrado:</strong> ${escapeHtml(veiculo)}</p>
-        <p><strong>Tipo de despesa:</strong> ${escapeHtml(tipoDespesa)}</p>
+        <p><strong>Motorista filtrado:</strong> ${escapeHtml(motorista)}</p>
+        <p><strong>Tipo:</strong> ${escapeHtml(tipoDespesa)}</p>
         <table>
           <thead>
             <tr>
               <th>Data</th>
               <th>Placa</th>
-              <th>Veiculo</th>
-              <th>Tipo de Despesa</th>
+              <th>Veículo</th>
+              <th>Motorista</th>
+              <th>Tipo</th>
               <th>Valor</th>
-              <th>Observacao</th>
+              <th>Quilometragem</th>
+              <th>Descrição</th>
+              <th>Observações</th>
             </tr>
           </thead>
           <tbody>${rowsHtml}</tbody>

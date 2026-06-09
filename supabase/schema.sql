@@ -109,25 +109,21 @@ create table if not exists public.veiculos (
 create table if not exists public.despesas_veiculos (
   id uuid primary key default gen_random_uuid(),
   data date not null,
-  placa text not null references public.veiculos(placa) on update cascade,
+  placa text not null,
+  veiculo text not null,
+  motorista text,
   tipo_despesa text not null check (
     tipo_despesa in (
-      'Combustível',
+      'Abastecimento',
       'Manutenção',
-      'Pedágio',
-      'Estacionamento',
       'Lavagem',
-      'Pneu',
-      'Óleo',
-      'Multa',
-      'Seguro',
-      'Documento',
+      'Pedágio',
       'Outros'
     )
   ),
-  descricao text,
-  km_atual numeric,
   valor numeric(12,2) not null default 0,
+  quilometragem numeric,
+  descricao text,
   observacao text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -171,10 +167,12 @@ create or replace view public.relatorio_despesas_veiculos as
 select
   data,
   placa,
+  veiculo,
+  motorista,
   tipo_despesa,
-  descricao,
-  km_atual,
   valor,
+  quilometragem,
+  descricao,
   observacao
 from public.despesas_veiculos
 order by data desc, placa;
