@@ -224,6 +224,32 @@ select {
   resize: vertical;
 }
 
+.multi-select-panel {
+  display: grid;
+  gap: 8px;
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.selected-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.selected-chip {
+  border-radius: 999px;
+  background: var(--brand-gray);
+  color: var(--brand-blue);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 8px;
+}
+
 .section-heading {
   display: flex;
   align-items: center;

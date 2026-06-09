@@ -696,6 +696,15 @@ export default function DiarioPage() {
     });
   }
 
+  function toggleMovementHelper(funcionarioId: string) {
+    setMovementForm({
+      ...movementForm,
+      ajudantes: movementForm.ajudantes.includes(funcionarioId)
+        ? movementForm.ajudantes.filter((currentId) => currentId !== funcionarioId)
+        : [...movementForm.ajudantes, funcionarioId]
+    });
+  }
+
   const tecnicoOptions = Array.from(
     new Set([
       ...funcionarios.map((funcionario) => funcionario.nome),
@@ -707,6 +716,7 @@ export default function DiarioPage() {
   const movementHelperOptions = funcionarios.filter(
     (funcionario) => !funcionarioMatchesTecnico(funcionario, movementForm.tecnico)
   );
+  const selectedMovementHelperNames = movementForm.ajudantes.map((funcionarioId) => funcionarioName(funcionarioId));
 
   return (
     <main className="app-shell">
@@ -897,19 +907,30 @@ export default function DiarioPage() {
 
                     <label>
                       Ajudantes
-                      <select
-                        multiple
-                        value={movementForm.ajudantes}
-                        onChange={(event) =>
-                          setMovementForm({ ...movementForm, ajudantes: selectValues(event.currentTarget) })
-                        }
-                      >
+                      <div className="multi-select-panel">
+                        {movementHelperOptions.length === 0 ? (
+                          <span className="muted-text">Nenhum funcionário disponível.</span>
+                        ) : null}
                         {movementHelperOptions.map((funcionario) => (
-                          <option key={funcionario.id} value={funcionario.id}>
+                          <label className="checkbox-label" key={funcionario.id}>
+                            <input
+                              checked={movementForm.ajudantes.includes(funcionario.id)}
+                              onChange={() => toggleMovementHelper(funcionario.id)}
+                              type="checkbox"
+                            />
                             {funcionario.nome}
-                          </option>
+                          </label>
                         ))}
-                      </select>
+                      </div>
+                      {selectedMovementHelperNames.length > 0 ? (
+                        <div className="selected-chip-list">
+                          {selectedMovementHelperNames.map((name) => (
+                            <span className="selected-chip" key={name}>
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                     </label>
 
                     <label>
