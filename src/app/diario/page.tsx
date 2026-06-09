@@ -115,6 +115,10 @@ function selectValues(select: HTMLSelectElement) {
   return Array.from(select.selectedOptions).map((option) => option.value);
 }
 
+function funcionarioMatchesTecnico(funcionario: Funcionario, tecnico: string) {
+  return funcionario.nome.trim().toLowerCase() === tecnico.trim().toLowerCase();
+}
+
 export default function DiarioPage() {
   const [records, setRecords] = useState<DiarioOperacional[]>([]);
   const [movements, setMovements] = useState<DiarioMovimentacao[]>([]);
@@ -255,7 +259,11 @@ export default function DiarioPage() {
         return;
       }
 
-      const selectedHelpers = Array.from(new Set(form.ajudantes)).filter(Boolean);
+      const selectedHelpers = Array.from(new Set(form.ajudantes)).filter((funcionarioId) => {
+        const funcionario = funcionarios.find((currentFuncionario) => currentFuncionario.id === funcionarioId);
+
+        return funcionario ? !funcionarioMatchesTecnico(funcionario, form.tecnico) : false;
+      });
 
       if (selectedHelpers.length > 0) {
         const { error: insertHelpersError } = await supabase.from("diario_ajudantes").insert(
@@ -523,6 +531,18 @@ export default function DiarioPage() {
     return ajudantes.filter((helper) => helper.diario_id === recordId);
   }
 
+  function handleTecnicoChange(tecnico: string) {
+    setForm({
+      ...form,
+      tecnico,
+      ajudantes: form.ajudantes.filter((funcionarioId) => {
+        const funcionario = funcionarios.find((currentFuncionario) => currentFuncionario.id === funcionarioId);
+
+        return funcionario ? !funcionarioMatchesTecnico(funcionario, tecnico) : true;
+      })
+    });
+  }
+
   const tecnicoOptions = Array.from(
     new Set([
       ...funcionarios.map((funcionario) => funcionario.nome),
@@ -530,6 +550,7 @@ export default function DiarioPage() {
       movementForm.tecnico
     ].filter(Boolean))
   );
+  const ajudanteOptions = funcionarios.filter((funcionario) => !funcionarioMatchesTecnico(funcionario, form.tecnico));
 
   return (
     <main className="app-shell">
@@ -564,12 +585,27 @@ export default function DiarioPage() {
                     <select
                       required
                       value={form.tecnico}
-                      onChange={(event) => setForm({ ...form, tecnico: event.target.value })}
+                      onChange={(event) => handleTecnicoChange(event.target.value)}
                     >
                       <option value="">Selecione</option>
                       {tecnicoOptions.map((tecnico) => (
                         <option key={tecnico} value={tecnico}>
                           {tecnico}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
+                    Ajudantes
+                    <select
+                      multiple
+                      value={form.ajudantes}
+                      onChange={(event) => setForm({ ...form, ajudantes: selectValues(event.currentTarget) })}
+                    >
+                      {ajudanteOptions.map((funcionario) => (
+                        <option key={funcionario.id} value={funcionario.id}>
+                          {funcionario.nome}
                         </option>
                       ))}
                     </select>
@@ -634,21 +670,6 @@ export default function DiarioPage() {
                       {agendaRecords.map((record) => (
                         <option key={record.id} value={record.id}>
                           {agendaLabel(record)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label>
-                    Ajudantes
-                    <select
-                      multiple
-                      value={form.ajudantes}
-                      onChange={(event) => setForm({ ...form, ajudantes: selectValues(event.currentTarget) })}
-                    >
-                      {funcionarios.map((funcionario) => (
-                        <option key={funcionario.id} value={funcionario.id}>
-                          {funcionario.nome}
                         </option>
                       ))}
                     </select>
