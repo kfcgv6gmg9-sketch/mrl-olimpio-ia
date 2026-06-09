@@ -33,6 +33,7 @@ type TechnicianIndicator = {
   tecnico: string;
   principal: number;
   ajudante: number;
+  total: number;
 };
 
 type RecentAttendance = {
@@ -41,19 +42,8 @@ type RecentAttendance = {
   cliente: string;
   tecnico: string;
   status: string;
+  cidade: string;
 };
-
-const dashboardTechnicians = [
-  "Fernando",
-  "Reginaldo",
-  "Rodrigo",
-  "Murilo",
-  "Leonardo",
-  "Leandro",
-  "Yan",
-  "Kauan",
-  "Pedro"
-];
 
 const dashboardPeriodLabels: Record<DashboardPeriod, string> = {
   today: "Hoje",
@@ -271,7 +261,8 @@ function HomeDashboard() {
             data: attendance.data,
             cliente: attendance.cliente,
             tecnico: attendance.tecnico,
-            status: attendance.status_atendimento ?? "Aberto"
+            status: attendance.status_atendimento ?? "Aberto",
+            cidade: attendance.cidade ?? "Nao informado"
           }))
         );
       }
@@ -375,6 +366,7 @@ function HomeDashboard() {
                     <th>Técnico</th>
                     <th>Principal</th>
                     <th>Ajudante</th>
+                    <th>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -383,6 +375,7 @@ function HomeDashboard() {
                       <td>{indicator.tecnico}</td>
                       <td>{indicator.principal}</td>
                       <td>{indicator.ajudante}</td>
+                      <td>{indicator.total}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -401,8 +394,9 @@ function HomeDashboard() {
                   <div>
                     <strong>{attendance.cliente}</strong>
                     <span>Data: {attendance.data}</span>
-                    <span>Técnico: {attendance.tecnico}</span>
+                    <span>Técnico principal: {attendance.tecnico}</span>
                     <span>Status: {attendance.status}</span>
+                    <span>Cidade: {attendance.cidade}</span>
                   </div>
                 </article>
               ))}
@@ -480,15 +474,22 @@ function buildTechnicianIndicators(
   const funcionarioName = (funcionarioId: string) =>
     funcionarios.find((funcionario) => funcionario.id === funcionarioId)?.nome ?? funcionarioId;
 
-  return dashboardTechnicians.map((tecnico) => ({
-    tecnico,
-    principal: attendances.filter((attendance) => sameName(attendance.tecnico, tecnico)).length,
-    ajudante: helpers.filter((helper) => {
+  return funcionarios.map((funcionario) => {
+    const tecnico = funcionario.nome;
+    const principal = attendances.filter((attendance) => sameName(attendance.tecnico, tecnico)).length;
+    const ajudante = helpers.filter((helper) => {
       const attendance = attendancesById.get(helper.diario_id);
 
       return Boolean(attendance) && sameName(funcionarioName(helper.funcionario_id), tecnico);
-    }).length
-  }));
+    }).length;
+
+    return {
+      tecnico,
+      principal,
+      ajudante,
+      total: principal + ajudante
+    };
+  });
 }
 
 function sameName(first: string, second: string) {
