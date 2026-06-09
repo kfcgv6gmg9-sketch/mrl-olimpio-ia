@@ -36,7 +36,7 @@ type HistoryItem = {
   id: string;
   data: string;
   tecnico: string;
-  status_atendimento: "Em andamento" | "Finalizado";
+  status_atendimento: string;
   servico_realizado: string;
   observacao: string | null;
 };
@@ -47,10 +47,17 @@ const initialMovimentacaoForm: MovimentacaoForm = {
   tecnico: "",
   servico_realizado: "",
   observacao: "",
-  status_atendimento: "Em andamento"
+  status_atendimento: "Aberto"
 };
 
-const statusAtendimento = ["Em andamento", "Finalizado"];
+const statusAtendimento = [
+  "Aberto",
+  "Em andamento",
+  "Aguardando Cliente",
+  "Aguardando Peça",
+  "Finalizado",
+  "Cancelado"
+];
 const defaultSituacaoAtendimento = "Servi\u00e7o T\u00e9cnico";
 const situacoesAtendimento = [defaultSituacaoAtendimento, "Retorno", "Garantia"];
 
@@ -63,7 +70,7 @@ function createInitialForm(): DiarioForm {
     servico_realizado: "",
     observacao: "",
     situacao_atendimento: defaultSituacaoAtendimento,
-    status_atendimento: "Em andamento",
+    status_atendimento: "Aberto",
     agendamento_id: "",
     ajudantes: []
   };
@@ -71,6 +78,10 @@ function createInitialForm(): DiarioForm {
 
 function isDiarioLocked(record: DiarioOperacional) {
   return record.status_atendimento === "Finalizado" || record.bloqueado === true;
+}
+
+function preventsNewMovement(record: DiarioOperacional) {
+  return isDiarioLocked(record) || record.status_atendimento === "Cancelado";
 }
 
 function agendaLabel(record: AgendaServico) {
@@ -87,7 +98,7 @@ function principalHistoryItem(record: DiarioOperacional): HistoryItem {
     tecnico: record.tecnico,
     servico_realizado: record.servico_realizado,
     observacao: record.observacao,
-    status_atendimento: record.status_atendimento === "Finalizado" ? "Finalizado" : "Em andamento"
+    status_atendimento: record.status_atendimento ?? "Aberto"
   };
 }
 
@@ -232,7 +243,7 @@ export default function DiarioPage() {
       servico_realizado: form.servico_realizado.trim(),
       observacao: form.observacao.trim() || null,
       situacao_atendimento: normalizeMainSituation(normalizedSituation),
-      status_atendimento: form.status_atendimento || null,
+      status_atendimento: form.status_atendimento || "Aberto",
       agendamento_id: form.agendamento_id || null,
       bloqueado: form.status_atendimento === "Finalizado"
     };
@@ -289,7 +300,7 @@ export default function DiarioPage() {
         tecnico: form.tecnico.trim(),
         servico_realizado: form.servico_realizado.trim(),
         observacao: form.observacao.trim() || null,
-        status_atendimento: form.status_atendimento || "Em andamento"
+        status_atendimento: form.status_atendimento || "Aberto"
       });
 
       if (movementError) {
@@ -316,7 +327,14 @@ export default function DiarioPage() {
 
     await logAudit({
       modulo: "Diário",
-      acao: payload.status_atendimento === "Finalizado" ? "Finalizar" : editingId ? "Editar" : "Criar",
+      acao:
+        payload.status_atendimento === "Finalizado"
+          ? "Finalizar"
+          : payload.status_atendimento === "Cancelado"
+            ? "Cancelar"
+            : editingId
+              ? "Editar"
+              : "Criar",
       registro_afetado: diarioId ?? form.cliente
     });
     setForm(createInitialForm());
@@ -340,13 +358,13 @@ export default function DiarioPage() {
       return;
     }
 
-    if (isDiarioLocked(record)) {
-      setError("Atendimento finalizado ou bloqueado nao permite novas movimentacoes.");
+    if (preventsNewMovement(record)) {
+      setError("Atendimento finalizado, bloqueado ou cancelado nao permite novas movimentacoes.");
       setSaving(false);
       return;
     }
 
-    const status = movementForm.status_atendimento || "Em andamento";
+    const status = movementForm.status_atendimento || "Aberto";
     const { error: movementError } = await supabase.from("diario_movimentacoes").insert({
       diario_id: movementForm.diario_id,
       data: movementForm.data,
@@ -362,22 +380,22 @@ export default function DiarioPage() {
       return;
     }
 
+    const { error: updateStatusError } = await supabase
+      .from("diario_operacional")
+      .update({
+        status_atendimento: status,
+        bloqueado: status === "Finalizado"
+      })
+      .eq("id", movementForm.diario_id);
+
+    if (updateStatusError) {
+      setError(`Movimentacao salva, mas nao foi possivel atualizar o status do atendimento: ${updateStatusError.message}`);
+      await loadRecords();
+      setSaving(false);
+      return;
+    }
+
     if (status === "Finalizado") {
-      const { error: updateError } = await supabase
-        .from("diario_operacional")
-        .update({
-          status_atendimento: "Finalizado",
-          bloqueado: true
-        })
-        .eq("id", movementForm.diario_id);
-
-      if (updateError) {
-        setError(`Movimentacao salva, mas nao foi possivel finalizar o atendimento: ${updateError.message}`);
-        await loadRecords();
-        setSaving(false);
-        return;
-      }
-
       if (record.agendamento_id) {
         const { error: agendaError } = await supabase
           .from("agenda_servicos")
@@ -395,7 +413,7 @@ export default function DiarioPage() {
 
     await logAudit({
       modulo: "Diário",
-      acao: status === "Finalizado" ? "Finalizar" : "Criar",
+      acao: status === "Finalizado" ? "Finalizar" : status === "Cancelado" ? "Cancelar" : "Criar",
       registro_afetado: movementForm.diario_id
     });
     setMovementForm(initialMovimentacaoForm);
@@ -422,7 +440,7 @@ export default function DiarioPage() {
       servico_realizado: record.servico_realizado,
       observacao: record.observacao ?? "",
       situacao_atendimento: normalizeFormSituation(record.situacao_atendimento ?? linkedAgenda?.situacao_agendamento),
-      status_atendimento: record.status_atendimento ?? "Em andamento",
+      status_atendimento: record.status_atendimento ?? "Aberto",
       agendamento_id: record.agendamento_id ?? "",
       ajudantes: ajudantes
         .filter((helper) => helper.diario_id === record.id)
@@ -440,9 +458,9 @@ export default function DiarioPage() {
   }
 
   function handlePrepareMovement(record: DiarioOperacional) {
-    if (isDiarioLocked(record)) {
+    if (preventsNewMovement(record)) {
       setMessage("");
-      setError("Atendimento finalizado ou bloqueado nao permite novas movimentacoes.");
+      setError("Atendimento finalizado, bloqueado ou cancelado nao permite novas movimentacoes.");
       return;
     }
 
@@ -452,7 +470,7 @@ export default function DiarioPage() {
       tecnico: record.tecnico,
       servico_realizado: "",
       observacao: "",
-      status_atendimento: "Em andamento"
+      status_atendimento: "Aberto"
     });
     setMessage("");
     setError("");
@@ -811,6 +829,7 @@ export default function DiarioPage() {
                   {records.map((record) => {
                     const linkedAgenda = agendaRecords.find((agenda) => agenda.id === record.agendamento_id);
                     const locked = isDiarioLocked(record);
+                    const movementDisabled = preventsNewMovement(record);
 
                     return (
                       <article className="record-card" key={record.id}>
@@ -865,7 +884,7 @@ export default function DiarioPage() {
                           </button>
                           <button
                             className="secondary-button"
-                            disabled={locked}
+                            disabled={movementDisabled}
                             onClick={() => handlePrepareMovement(record)}
                             type="button"
                           >
@@ -887,3 +906,4 @@ export default function DiarioPage() {
     </main>
   );
 }
+

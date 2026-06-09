@@ -28,12 +28,26 @@ create table if not exists public.diario_operacional (
   data date not null,
   tecnico text not null,
   cliente text not null,
+  cidade text,
   servico_realizado text not null,
   observacao text,
   situacao_atendimento text check (
     situacao_atendimento in ('Realizado', 'Pendente', 'Retorno', 'Cancelado')
     or situacao_atendimento is null
   ),
+  status_atendimento text check (
+    status_atendimento in (
+      'Aberto',
+      'Em andamento',
+      'Aguardando Cliente',
+      'Aguardando Peça',
+      'Finalizado',
+      'Cancelado'
+    )
+    or status_atendimento is null
+  ),
+  agendamento_id uuid references public.agenda_servicos(id) on delete set null,
+  bloqueado boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -46,7 +60,14 @@ create table if not exists public.diario_movimentacoes (
   servico_realizado text not null,
   observacao text,
   status_atendimento text not null check (
-    status_atendimento in ('Em andamento', 'Finalizado')
+    status_atendimento in (
+      'Aberto',
+      'Em andamento',
+      'Aguardando Cliente',
+      'Aguardando Peça',
+      'Finalizado',
+      'Cancelado'
+    )
   ),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

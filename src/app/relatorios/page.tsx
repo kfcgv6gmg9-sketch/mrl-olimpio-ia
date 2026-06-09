@@ -48,6 +48,15 @@ const initialDiarioFilters: DiarioFilters = {
   situacaoAtendimento: ""
 };
 
+const statusAtendimento = [
+  "Aberto",
+  "Em andamento",
+  "Aguardando Cliente",
+  "Aguardando Peça",
+  "Finalizado",
+  "Cancelado"
+];
+
 export default function RelatoriosPage() {
   const [agendaRecords, setAgendaRecords] = useState<AgendaServico[]>([]);
   const [diarioRecords, setDiarioRecords] = useState<DiarioReportRecord[]>([]);
@@ -239,7 +248,7 @@ export default function RelatoriosPage() {
   );
   const diarioSituationCounts = countSituations(
     diarioRecords,
-    ["Em andamento", "Finalizado"],
+    statusAtendimento,
     "situacao_atendimento"
   );
 
@@ -328,7 +337,7 @@ export default function RelatoriosPage() {
                 </label>
 
                 <label>
-                  Situacao
+                  Status
                   <select
                     value={agendaFilters.situacaoAgendamento}
                     onChange={(event) =>
@@ -431,8 +440,11 @@ export default function RelatoriosPage() {
                     }
                   >
                     <option value="">Todas</option>
-                    <option value="Em andamento">Em andamento</option>
-                    <option value="Finalizado">Finalizado</option>
+                    {statusAtendimento.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
                   </select>
                 </label>
 
@@ -461,7 +473,7 @@ export default function RelatoriosPage() {
                         {record.data} | {record.tecnico}
                       </span>
                       <span>Funcao: {record.funcao}</span>
-                      <span>Situacao: {record.situacao_atendimento ?? "Nao informado"}</span>
+                      <span>Status: {record.situacao_atendimento ?? "Nao informado"}</span>
                       <p>{record.servico_realizado}</p>
                       {record.observacao ? <p>{record.observacao}</p> : null}
                     </div>

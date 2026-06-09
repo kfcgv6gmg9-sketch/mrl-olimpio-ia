@@ -20,7 +20,14 @@ export type DiarioOperacional = {
   servico_realizado: string;
   observacao: string | null;
   situacao_atendimento: string | null;
-  status_atendimento: "Em andamento" | "Finalizado" | null;
+  status_atendimento:
+    | "Aberto"
+    | "Em andamento"
+    | "Aguardando Cliente"
+    | "Aguardando Peça"
+    | "Finalizado"
+    | "Cancelado"
+    | null;
   agendamento_id: string | null;
   bloqueado: boolean | null;
   created_at: string;
@@ -34,7 +41,13 @@ export type DiarioMovimentacao = {
   tecnico: string;
   servico_realizado: string;
   observacao: string | null;
-  status_atendimento: "Em andamento" | "Finalizado";
+  status_atendimento:
+    | "Aberto"
+    | "Em andamento"
+    | "Aguardando Cliente"
+    | "Aguardando Peça"
+    | "Finalizado"
+    | "Cancelado";
   created_at: string;
   updated_at: string;
 };
