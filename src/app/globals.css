@@ -333,6 +333,12 @@ select {
   margin-top: 12px;
 }
 
+.movement-list h3 {
+  color: var(--foreground);
+  font-size: 15px;
+  margin: 0;
+}
+
 .movement-item {
   border-left: 3px solid var(--primary);
   background: var(--brand-gray);

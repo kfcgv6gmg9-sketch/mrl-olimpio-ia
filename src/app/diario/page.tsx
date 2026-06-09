@@ -32,6 +32,15 @@ type MovimentacaoForm = {
   status_atendimento: string;
 };
 
+type HistoryItem = {
+  id: string;
+  data: string;
+  tecnico: string;
+  status_atendimento: "Em andamento" | "Finalizado";
+  servico_realizado: string;
+  observacao: string | null;
+};
+
 const initialMovimentacaoForm: MovimentacaoForm = {
   diario_id: "",
   data: "",
@@ -71,18 +80,24 @@ function agendaLabel(record: AgendaServico) {
   return `${record.data} | ${record.cliente}${city}${status}`;
 }
 
-function movementFallback(record: DiarioOperacional): DiarioMovimentacao {
+function principalHistoryItem(record: DiarioOperacional): HistoryItem {
   return {
-    id: `legacy-${record.id}`,
-    diario_id: record.id,
+    id: `principal-${record.id}`,
     data: record.data,
     tecnico: record.tecnico,
     servico_realizado: record.servico_realizado,
     observacao: record.observacao,
-    status_atendimento: record.status_atendimento === "Finalizado" ? "Finalizado" : "Em andamento",
-    created_at: record.created_at,
-    updated_at: record.updated_at
+    status_atendimento: record.status_atendimento === "Finalizado" ? "Finalizado" : "Em andamento"
   };
+}
+
+function isInitialMovementCopy(record: DiarioOperacional, movement: DiarioMovimentacao) {
+  return (
+    movement.data === record.data &&
+    movement.tecnico === record.tecnico &&
+    movement.servico_realizado === record.servico_realizado &&
+    (movement.observacao ?? "") === (record.observacao ?? "")
+  );
 }
 
 function normalizeMainSituation(value: string) {
@@ -135,8 +150,8 @@ export default function DiarioPage() {
       supabase
         .from("diario_movimentacoes")
         .select("*")
-        .order("data", { ascending: false })
-        .order("created_at", { ascending: false }),
+        .order("data", { ascending: true })
+        .order("created_at", { ascending: true }),
       supabase
         .from("agenda_servicos")
         .select("*")
@@ -482,10 +497,22 @@ export default function DiarioPage() {
     }
   }
 
-  function recordMovements(record: DiarioOperacional) {
-    const currentMovements = movements.filter((movement) => movement.diario_id === record.id);
+  function recordHistory(record: DiarioOperacional) {
+    const principalItem = principalHistoryItem(record);
+    const visitItems = movements
+      .filter((movement) => movement.diario_id === record.id)
+      .filter((movement) => !isInitialMovementCopy(record, movement))
+      .sort((first, second) => {
+        const dateComparison = first.data.localeCompare(second.data);
 
-    return currentMovements.length > 0 ? currentMovements : [movementFallback(record)];
+        if (dateComparison !== 0) {
+          return dateComparison;
+        }
+
+        return first.created_at.localeCompare(second.created_at);
+      });
+
+    return [principalItem, ...visitItems];
   }
 
   function funcionarioName(funcionarioId: string) {
@@ -792,13 +819,15 @@ export default function DiarioPage() {
                           </span>
                           {record.bloqueado ? <span>Bloqueado: Sim</span> : null}
 
-                          <div className="movement-list">
-                            {recordMovements(record).map((movement) => (
+                          <div className="movement-list" aria-label="Historico do atendimento">
+                            <h3>Histórico do Atendimento</h3>
+                            {recordHistory(record).map((movement) => (
                               <div className="movement-item" key={movement.id}>
                                 <strong>
-                                  {movement.data} | {movement.tecnico} | {movement.status_atendimento}
+                                  {movement.data} - {movement.tecnico}
                                 </strong>
-                                <p>{movement.servico_realizado}</p>
+                                <span>Status: {movement.status_atendimento}</span>
+                                <p>Serviço: {movement.servico_realizado}</p>
                                 {movement.observacao ? <p>{movement.observacao}</p> : null}
                               </div>
                             ))}
