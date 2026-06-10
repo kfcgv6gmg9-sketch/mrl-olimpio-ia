@@ -52,6 +52,8 @@ type HistoryItem = {
   observacao: string | null;
 };
 
+type DiarioQuickFilter = "Todos" | "Em andamento" | "Finalizados";
+
 const initialMovimentacaoForm: MovimentacaoForm = {
   movimentacao_id: "",
   diario_id: "",
@@ -149,6 +151,58 @@ function funcionarioMatchesTecnico(funcionario: Funcionario, tecnico: string) {
   return funcionario.nome.trim().toLowerCase() === tecnico.trim().toLowerCase();
 }
 
+function filterDiarioRecordsByQuickStatus(records: DiarioOperacional[], filter: DiarioQuickFilter) {
+  if (filter === "Em andamento") {
+    return records.filter((record) => record.status_atendimento === "Em andamento");
+  }
+
+  if (filter === "Finalizados") {
+    return records.filter((record) => record.status_atendimento === "Finalizado");
+  }
+
+  return records;
+}
+
+function sortDiarioRecords(records: DiarioOperacional[]) {
+  return [...records].sort((first, second) => {
+    const statusComparison = statusSortOrder(first.status_atendimento) - statusSortOrder(second.status_atendimento);
+
+    if (statusComparison !== 0) {
+      return statusComparison;
+    }
+
+    return second.data.localeCompare(first.data);
+  });
+}
+
+function statusSortOrder(status: string | null) {
+  if (status === "Em andamento") {
+    return 0;
+  }
+
+  if (status === "Finalizado") {
+    return 2;
+  }
+
+  return 1;
+}
+
+function statusBadgeClass(status: string | null) {
+  if (status === "Em andamento") {
+    return "status-badge status-badge-progress";
+  }
+
+  if (status === "Finalizado") {
+    return "status-badge status-badge-done";
+  }
+
+  if (status === "Cancelado") {
+    return "status-badge status-badge-canceled";
+  }
+
+  return "status-badge";
+}
+
 export default function DiarioPage() {
   const [records, setRecords] = useState<DiarioOperacional[]>([]);
   const [movements, setMovements] = useState<DiarioMovimentacao[]>([]);
@@ -159,6 +213,7 @@ export default function DiarioPage() {
   const [form, setForm] = useState<DiarioForm>(createInitialForm);
   const [movementForm, setMovementForm] = useState<MovimentacaoForm>(initialMovimentacaoForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [diarioQuickFilter, setDiarioQuickFilter] = useState<DiarioQuickFilter>("Todos");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -773,6 +828,10 @@ export default function DiarioPage() {
     (funcionario) => !funcionarioMatchesTecnico(funcionario, movementForm.tecnico)
   );
   const selectedMovementHelperNames = movementForm.ajudantes.map((funcionarioId) => funcionarioName(funcionarioId));
+  const visibleRecords = sortDiarioRecords(filterDiarioRecordsByQuickStatus(records, diarioQuickFilter));
+  const totalRecords = records.length;
+  const inProgressRecords = records.filter((record) => record.status_atendimento === "Em andamento").length;
+  const finalizedRecords = records.filter((record) => record.status_atendimento === "Finalizado").length;
 
   return (
     <main className="app-shell">
@@ -1057,8 +1116,36 @@ export default function DiarioPage() {
                   <p className="status-text">Nenhum registro cadastrado.</p>
                 ) : null}
 
+                <div className="situation-grid" aria-label="Contadores do Diario">
+                  <article className="situation-card">
+                    <span>Todos</span>
+                    <strong>{totalRecords}</strong>
+                  </article>
+                  <article className="situation-card">
+                    <span>Em andamento</span>
+                    <strong>{inProgressRecords}</strong>
+                  </article>
+                  <article className="situation-card">
+                    <span>Finalizados</span>
+                    <strong>{finalizedRecords}</strong>
+                  </article>
+                </div>
+
+                <div className="quick-filter-row" aria-label="Filtro rapido do Diario">
+                  {(["Todos", "Em andamento", "Finalizados"] as DiarioQuickFilter[]).map((filter) => (
+                    <button
+                      className={diarioQuickFilter === filter ? "quick-filter-button active" : "quick-filter-button"}
+                      key={filter}
+                      onClick={() => setDiarioQuickFilter(filter)}
+                      type="button"
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="record-list">
-                  {records.map((record) => {
+                  {visibleRecords.map((record) => {
                     const linkedAgenda = agendaRecords.find((agenda) => agenda.id === record.agendamento_id);
                     const locked = isDiarioLocked(record);
                     const movementDisabled = preventsNewMovement(record);
@@ -1077,7 +1164,9 @@ export default function DiarioPage() {
                             Situacao:{" "}
                             {normalizeFormSituation(record.situacao_atendimento ?? linkedAgenda?.situacao_agendamento)}
                           </span>
-                          <span>Status: {record.status_atendimento ?? "Nao informado"}</span>
+                          <span className={statusBadgeClass(record.status_atendimento)}>
+                            Status: {record.status_atendimento ?? "Nao informado"}
+                          </span>
                           {recordHelpers(record.id).length > 0 ? (
                             <span>
                               Ajudantes: {recordHelpers(record.id).map((helper) => funcionarioName(helper.funcionario_id)).join(", ")}

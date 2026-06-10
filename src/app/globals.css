@@ -264,9 +264,17 @@ select {
   gap: 8px;
 }
 
+.quick-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
 .primary-button,
 .secondary-button,
-.danger-button {
+.danger-button,
+.quick-filter-button {
   min-height: 40px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -295,6 +303,18 @@ select {
   border-color: var(--border);
   background: #ffffff;
   color: var(--foreground);
+}
+
+.quick-filter-button {
+  border-color: var(--border);
+  background: #ffffff;
+  color: var(--foreground);
+}
+
+.quick-filter-button.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #ffffff;
 }
 
 .danger-button {
@@ -345,6 +365,31 @@ select {
   margin-top: 4px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.record-card .status-badge {
+  display: inline-block;
+  width: fit-content;
+  border-radius: 999px;
+  background: var(--brand-gray);
+  color: var(--foreground);
+  font-weight: 800;
+  padding: 5px 9px;
+}
+
+.record-card .status-badge-progress {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.record-card .status-badge-done {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.record-card .status-badge-canceled {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .record-card .finalized-badge {

@@ -38,6 +38,8 @@ type DiarioFilters = AgendaFilters & {
   situacaoAtendimento: string;
 };
 
+type DiarioQuickFilter = "Todos" | "Em andamento" | "Finalizados";
+
 const initialAgendaFilters: AgendaFilters = {
   data: "",
   dataInicio: "",
@@ -68,6 +70,7 @@ export default function RelatoriosPage() {
   const [diarioRecords, setDiarioRecords] = useState<DiarioReportRecord[]>([]);
   const [agendaFilters, setAgendaFilters] = useState<AgendaFilters>(initialAgendaFilters);
   const [diarioFilters, setDiarioFilters] = useState<DiarioFilters>(initialDiarioFilters);
+  const [diarioQuickFilter, setDiarioQuickFilter] = useState<DiarioQuickFilter>("Todos");
   const [loadingAgenda, setLoadingAgenda] = useState(true);
   const [loadingDiario, setLoadingDiario] = useState(true);
   const [agendaError, setAgendaError] = useState("");
@@ -215,7 +218,7 @@ export default function RelatoriosPage() {
         "status_atendimento",
         "observacao"
       ],
-      diarioCsvRows(diarioRecords)
+      diarioCsvRows(visibleDiarioRecords)
     );
   }
 
@@ -238,7 +241,7 @@ export default function RelatoriosPage() {
       title: "Relatorio Diario",
       period: formatPeriod(diarioFilters),
       tecnico: diarioFilters.tecnico.trim() || "Todos",
-      rows: diarioRecords.map((record) => ({
+      rows: visibleDiarioRecords.map((record) => ({
         data: record.data,
         tecnico: record.tecnico,
         cliente: record.cliente,
@@ -248,6 +251,8 @@ export default function RelatoriosPage() {
       }))
     });
   }
+
+  const visibleDiarioRecords = sortDiarioRecords(filterDiarioRecordsByQuickStatus(diarioRecords, diarioQuickFilter));
 
   const agendaSituationCounts = countSituations(
     agendaRecords,
@@ -472,15 +477,30 @@ export default function RelatoriosPage() {
                 <p className="status-text">Nenhum registro encontrado.</p>
               ) : null}
 
+              <div className="quick-filter-row" aria-label="Filtro rapido do Diario">
+                {(["Todos", "Em andamento", "Finalizados"] as DiarioQuickFilter[]).map((filter) => (
+                  <button
+                    className={diarioQuickFilter === filter ? "quick-filter-button active" : "quick-filter-button"}
+                    key={filter}
+                    onClick={() => setDiarioQuickFilter(filter)}
+                    type="button"
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
+
               <div className="record-list">
-                {diarioRecords.map((record) => (
+                {visibleDiarioRecords.map((record) => (
                   <article className="record-card report-card" key={record.id}>
                     <div>
                       <strong>{record.cliente}</strong>
                       <span>
                         {record.data} | {record.tecnico}
                       </span>
-                      <span>Status: {record.status_atendimento ?? "Nao informado"}</span>
+                      <span className={statusBadgeClass(record.status_atendimento)}>
+                        Status: {record.status_atendimento ?? "Nao informado"}
+                      </span>
                       <p>{record.servico_realizado}</p>
                       {record.observacao ? <p>{record.observacao}</p> : null}
                     </div>
@@ -536,6 +556,54 @@ function diarioCsvRows(records: DiarioReportRecord[]) {
     status_atendimento: record.status_atendimento ?? "",
     observacao: record.observacao ?? ""
   }));
+}
+
+function filterDiarioRecordsByQuickStatus(records: DiarioReportRecord[], filter: DiarioQuickFilter) {
+  if (filter === "Em andamento") {
+    return records.filter((record) => record.status_atendimento === "Em andamento");
+  }
+
+  if (filter === "Finalizados") {
+    return records.filter((record) => record.status_atendimento === "Finalizado");
+  }
+
+  return records;
+}
+
+function sortDiarioRecords(records: DiarioReportRecord[]) {
+  return [...records].sort((first, second) => {
+    const statusComparison = statusSortOrder(first.status_atendimento) - statusSortOrder(second.status_atendimento);
+
+    if (statusComparison !== 0) {
+      return statusComparison;
+    }
+
+    return second.data.localeCompare(first.data);
+  });
+}
+
+function statusSortOrder(status: string | null) {
+  if (status === "Em andamento") {
+    return 0;
+  }
+
+  if (status === "Finalizado") {
+    return 2;
+  }
+
+  return 1;
+}
+
+function statusBadgeClass(status: string | null) {
+  if (status === "Em andamento") {
+    return "status-badge status-badge-progress";
+  }
+
+  if (status === "Finalizado") {
+    return "status-badge status-badge-done";
+  }
+
+  return "status-badge";
 }
 
 function buildDiarioReportRows(
