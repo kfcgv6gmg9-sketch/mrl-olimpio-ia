@@ -210,7 +210,6 @@ export default function RelatoriosPage() {
       [
         "data",
         "tecnico",
-        "funcao",
         "cliente",
         "servico_realizado",
         "status_atendimento",
@@ -242,7 +241,6 @@ export default function RelatoriosPage() {
       rows: diarioRecords.map((record) => ({
         data: record.data,
         tecnico: record.tecnico,
-        funcao: record.funcao,
         cliente: record.cliente,
         servico: record.servico_realizado,
         status: record.status_atendimento ?? "Nao informado",
@@ -482,7 +480,6 @@ export default function RelatoriosPage() {
                       <span>
                         {record.data} | {record.tecnico}
                       </span>
-                      <span>Funcao: {record.funcao}</span>
                       <span>Status: {record.status_atendimento ?? "Nao informado"}</span>
                       <p>{record.servico_realizado}</p>
                       {record.observacao ? <p>{record.observacao}</p> : null}
@@ -534,7 +531,6 @@ function diarioCsvRows(records: DiarioReportRecord[]) {
   return records.map((record) => ({
     data: record.data,
     tecnico: record.tecnico,
-    funcao: record.funcao,
     cliente: record.cliente,
     servico_realizado: record.servico_realizado,
     status_atendimento: record.status_atendimento ?? "",
@@ -677,7 +673,6 @@ function printPdfReport({
   rows: Array<{
     data: string;
     tecnico?: string;
-    funcao?: string;
     cliente: string;
     servico: string;
     status: string;
@@ -698,7 +693,6 @@ function printPdfReport({
             <tr>
               <td>${escapeHtml(row.data)}</td>
               <td>${escapeHtml(row.tecnico ?? "")}</td>
-              <td>${escapeHtml(row.funcao ?? "")}</td>
               <td>${escapeHtml(row.cliente)}</td>
               <td>${escapeHtml(row.servico)}</td>
               <td>${escapeHtml(row.status)}</td>
@@ -707,7 +701,7 @@ function printPdfReport({
           `
         )
         .join("")
-    : '<tr><td colspan="7">Nenhum registro encontrado.</td></tr>';
+    : '<tr><td colspan="6">Nenhum registro encontrado.</td></tr>';
 
   reportWindow.document.write(`
     <!doctype html>
@@ -759,7 +753,6 @@ function printPdfReport({
             <tr>
               <th>Data</th>
               <th>Tecnico</th>
-              <th>Funcao</th>
               <th>Cliente</th>
               <th>Servico</th>
               <th>Status</th>
