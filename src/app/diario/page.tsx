@@ -348,6 +348,17 @@ export default function DiarioPage() {
       }
     }
 
+    if (diarioId && payload.status_atendimento === "Finalizado") {
+      const { error: movementsStatusError } = await finalizeDiarioMovements(diarioId);
+
+      if (movementsStatusError) {
+        setError(`Registro finalizado, mas nao foi possivel finalizar as movimentacoes: ${movementsStatusError.message}`);
+        await loadRecords();
+        setSaving(false);
+        return;
+      }
+    }
+
     if (payload.status_atendimento === "Finalizado" && payload.agendamento_id) {
       const { error: agendaError } = await supabase
         .from("agenda_servicos")
@@ -467,13 +478,15 @@ export default function DiarioPage() {
       }
     }
 
-    const { error: updateStatusError } = await supabase
+    const { data: updatedRecord, error: updateStatusError } = await supabase
       .from("diario_operacional")
       .update({
         status_atendimento: status,
         bloqueado: status === "Finalizado"
       })
-      .eq("id", movementForm.diario_id);
+      .eq("id", movementForm.diario_id)
+      .select("id,status_atendimento,bloqueado")
+      .single();
 
     if (updateStatusError) {
       setError(`Movimentacao salva, mas nao foi possivel atualizar o status do atendimento: ${updateStatusError.message}`);
@@ -482,7 +495,26 @@ export default function DiarioPage() {
       return;
     }
 
+    if (
+      status === "Finalizado" &&
+      (updatedRecord?.status_atendimento !== "Finalizado" || updatedRecord.bloqueado !== true)
+    ) {
+      setError("Movimentacao salva, mas o atendimento principal nao foi confirmado como finalizado e bloqueado.");
+      await loadRecords();
+      setSaving(false);
+      return;
+    }
+
     if (status === "Finalizado") {
+      const { error: movementsStatusError } = await finalizeDiarioMovements(movementForm.diario_id);
+
+      if (movementsStatusError) {
+        setError(`Atendimento finalizado, mas nao foi possivel finalizar as movimentacoes: ${movementsStatusError.message}`);
+        await loadRecords();
+        setSaving(false);
+        return;
+      }
+
       if (record.agendamento_id) {
         const { error: agendaError } = await supabase
           .from("agenda_servicos")
@@ -507,6 +539,13 @@ export default function DiarioPage() {
     setMessage(status === "Finalizado" ? "Atendimento finalizado." : movementForm.movimentacao_id ? "Movimentacao atualizada." : "Movimentacao adicionada.");
     await loadRecords();
     setSaving(false);
+  }
+
+  async function finalizeDiarioMovements(diarioId: string) {
+    return supabase
+      .from("diario_movimentacoes")
+      .update({ status_atendimento: "Finalizado" })
+      .eq("diario_id", diarioId);
   }
 
   function handleEdit(record: DiarioOperacional) {

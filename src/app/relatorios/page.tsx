@@ -23,7 +23,6 @@ type DiarioReportRecord = {
   cliente: string;
   servico_realizado: string;
   status_atendimento: string | null;
-  status_visita: string | null;
   observacao: string | null;
 };
 
@@ -215,7 +214,6 @@ export default function RelatoriosPage() {
         "cliente",
         "servico_realizado",
         "status_atendimento",
-        "status_visita",
         "observacao"
       ],
       diarioCsvRows(diarioRecords)
@@ -248,7 +246,6 @@ export default function RelatoriosPage() {
         cliente: record.cliente,
         servico: record.servico_realizado,
         status: record.status_atendimento ?? "Nao informado",
-        statusVisita: record.status_visita ?? "",
         observacao: record.observacao ?? ""
       }))
     });
@@ -487,7 +484,6 @@ export default function RelatoriosPage() {
                       </span>
                       <span>Funcao: {record.funcao}</span>
                       <span>Status: {record.status_atendimento ?? "Nao informado"}</span>
-                      {record.status_visita ? <span>Status da visita: {record.status_visita}</span> : null}
                       <p>{record.servico_realizado}</p>
                       {record.observacao ? <p>{record.observacao}</p> : null}
                     </div>
@@ -542,7 +538,6 @@ function diarioCsvRows(records: DiarioReportRecord[]) {
     cliente: record.cliente,
     servico_realizado: record.servico_realizado,
     status_atendimento: record.status_atendimento ?? "",
-    status_visita: record.status_visita ?? "",
     observacao: record.observacao ?? ""
   }));
 }
@@ -586,7 +581,6 @@ function buildDiarioReportRows(
       cliente: diario.cliente,
       servico_realizado: movement.servico_realizado,
       status_atendimento: principalStatus,
-      status_visita: movement.status_atendimento ?? null,
       observacao: movement.observacao
     };
     const rows = [
@@ -614,7 +608,6 @@ function buildDiarioReportRows(
         cliente: record.cliente,
         servico_realizado: record.servico_realizado,
         status_atendimento: record.status_atendimento ?? record.situacao_atendimento ?? null,
-        status_visita: null,
         observacao: record.observacao
       };
       const rows = [
@@ -688,7 +681,6 @@ function printPdfReport({
     cliente: string;
     servico: string;
     status: string;
-    statusVisita?: string;
     observacao: string;
   }>;
 }) {
@@ -710,13 +702,12 @@ function printPdfReport({
               <td>${escapeHtml(row.cliente)}</td>
               <td>${escapeHtml(row.servico)}</td>
               <td>${escapeHtml(row.status)}</td>
-              <td>${escapeHtml(row.statusVisita ?? "")}</td>
               <td>${escapeHtml(row.observacao)}</td>
             </tr>
           `
         )
         .join("")
-    : '<tr><td colspan="8">Nenhum registro encontrado.</td></tr>';
+    : '<tr><td colspan="7">Nenhum registro encontrado.</td></tr>';
 
   reportWindow.document.write(`
     <!doctype html>
@@ -772,7 +763,6 @@ function printPdfReport({
               <th>Cliente</th>
               <th>Servico</th>
               <th>Status</th>
-              <th>Status da visita</th>
               <th>Observacao</th>
             </tr>
           </thead>
