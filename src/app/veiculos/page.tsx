@@ -234,7 +234,7 @@ export default function VeiculosPage() {
         "data",
         "placa",
         "veiculo",
-        "motorista",
+        "fornecedor",
         "tipo_despesa",
         "valor",
         "quilometragem",
@@ -250,7 +250,7 @@ export default function VeiculosPage() {
       title: "Relatório por Placa",
       period: formatPeriod(filters),
       placa: filters.placa.trim() || "Todas",
-      motorista: filters.motorista.trim() || "Todos",
+      fornecedor: filters.motorista.trim() || "Todos",
       tipoDespesa: filters.tipo_despesa || "Todos",
       rows: records
     });
@@ -261,7 +261,7 @@ export default function VeiculosPage() {
       title: "Relatório por Período",
       period: formatPeriod(filters),
       placa: filters.placa.trim() || "Todas",
-      motorista: filters.motorista.trim() || "Todos",
+      fornecedor: filters.motorista.trim() || "Todos",
       tipoDespesa: filters.tipo_despesa || "Todos",
       rows: records
     });
@@ -328,7 +328,7 @@ export default function VeiculosPage() {
                 </label>
 
                 <label>
-                  Motorista
+                  Fornecedor
                   <input
                     type="text"
                     value={form.motorista}
@@ -435,7 +435,7 @@ export default function VeiculosPage() {
                   </label>
 
                   <label>
-                    Motorista
+                    Fornecedor
                     <input
                       type="text"
                       value={filters.motorista}
@@ -501,7 +501,7 @@ export default function VeiculosPage() {
                         <span>
                           {record.data} | {record.tipo_despesa} | {formatCurrency(record.valor)}
                         </span>
-                        <span>Motorista: {record.motorista ?? "Não informado"}</span>
+                        <span>Fornecedor: {record.motorista ?? "Não informado"}</span>
                         <span>Quilometragem: {formatMileage(record.quilometragem)}</span>
                         {record.descricao ? <p>{record.descricao}</p> : null}
                         {record.observacao ? <p>{record.observacao}</p> : null}
@@ -531,7 +531,7 @@ function vehicleCsvRow(record: DespesaVeiculo) {
     data: record.data,
     placa: record.placa,
     veiculo: record.veiculo,
-    motorista: record.motorista ?? "",
+    fornecedor: record.motorista ?? "",
     tipo_despesa: record.tipo_despesa,
     valor: formatCurrency(record.valor),
     quilometragem: record.quilometragem ? String(record.quilometragem) : "",
@@ -592,14 +592,14 @@ function printPdfReport({
   title,
   period,
   placa,
-  motorista,
+  fornecedor,
   tipoDespesa,
   rows
 }: {
   title: string;
   period: string;
   placa: string;
-  motorista: string;
+  fornecedor: string;
   tipoDespesa: string;
   rows: DespesaVeiculo[];
 }) {
@@ -675,7 +675,7 @@ function printPdfReport({
         <h1>${escapeHtml(title)}</h1>
         <p><strong>Período filtrado:</strong> ${escapeHtml(period)}</p>
         <p><strong>Placa filtrada:</strong> ${escapeHtml(placa)}</p>
-        <p><strong>Motorista filtrado:</strong> ${escapeHtml(motorista)}</p>
+        <p><strong>Fornecedor filtrado:</strong> ${escapeHtml(fornecedor)}</p>
         <p><strong>Tipo:</strong> ${escapeHtml(tipoDespesa)}</p>
         <table>
           <thead>
@@ -683,7 +683,7 @@ function printPdfReport({
               <th>Data</th>
               <th>Placa</th>
               <th>Veículo</th>
-              <th>Motorista</th>
+              <th>Fornecedor</th>
               <th>Tipo</th>
               <th>Valor</th>
               <th>Quilometragem</th>
