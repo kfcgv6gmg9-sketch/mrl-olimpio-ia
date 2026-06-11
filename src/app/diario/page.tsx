@@ -20,6 +20,7 @@ import {
 type DiarioForm = {
   data: string;
   tecnico: string;
+  tipo_atendimento: string;
   cliente: string;
   cidade: string;
   servico_realizado: string;
@@ -73,6 +74,19 @@ const statusAtendimento = [
   "Finalizado",
   "Cancelado"
 ];
+const tiposAtendimento = ["Cliente", "Serviço interno"];
+const servicosInternosSugeridos = [
+  "Organização de estoque",
+  "Manutenção interna",
+  "Separação de materiais",
+  "Montagem de quadro",
+  "Teste de equipamento",
+  "Limpeza da oficina",
+  "Apoio na loja",
+  "Treinamento",
+  "Aguardando serviço externo",
+  "Outros"
+];
 const defaultSituacaoAtendimento = "Servi\u00e7o T\u00e9cnico";
 const situacoesAtendimento = [defaultSituacaoAtendimento, "Retorno", "Garantia"];
 
@@ -80,6 +94,7 @@ function createInitialForm(): DiarioForm {
   return {
     data: "",
     tecnico: "",
+    tipo_atendimento: "Cliente",
     cliente: "",
     cidade: "",
     servico_realizado: "",
@@ -141,6 +156,18 @@ function normalizeMainSituation(value: string) {
 
 function normalizeFormSituation(value?: string | null) {
   return value && situacoesAtendimento.includes(value) ? value : defaultSituacaoAtendimento;
+}
+
+function normalizeTipoAtendimento(value?: string | null) {
+  return value === "Serviço interno" ? "Serviço interno" : "Cliente";
+}
+
+function diarioTipoAtendimento(record: Pick<DiarioOperacional, "tipo_atendimento" | "cliente">) {
+  if (record.tipo_atendimento) {
+    return normalizeTipoAtendimento(record.tipo_atendimento);
+  }
+
+  return record.cliente === "Cobop / Interno" ? "Serviço interno" : "Cliente";
 }
 
 function selectValues(select: HTMLSelectElement) {
@@ -327,16 +354,18 @@ export default function DiarioPage() {
     }
 
     const normalizedSituation = normalizeFormSituation(form.situacao_atendimento);
+    const tipoAtendimento = normalizeTipoAtendimento(form.tipo_atendimento);
     const payload = {
       data: form.data,
       tecnico: form.tecnico.trim(),
+      tipo_atendimento: tipoAtendimento,
       cliente: form.cliente.trim(),
       cidade: form.cidade.trim() || null,
       servico_realizado: form.servico_realizado.trim(),
       observacao: form.observacao.trim() || null,
       situacao_atendimento: normalizeMainSituation(normalizedSituation),
       status_atendimento: form.status_atendimento || "Aberto",
-      agendamento_id: form.agendamento_id || null,
+      agendamento_id: tipoAtendimento === "Serviço interno" ? null : form.agendamento_id || null,
       bloqueado: form.status_atendimento === "Finalizado"
     };
 
@@ -616,6 +645,7 @@ export default function DiarioPage() {
     setForm({
       data: record.data,
       tecnico: record.tecnico,
+      tipo_atendimento: diarioTipoAtendimento(record),
       cliente: record.cliente,
       cidade: record.cidade ?? "",
       servico_realizado: record.servico_realizado,
@@ -636,6 +666,38 @@ export default function DiarioPage() {
     setForm(createInitialForm());
     setMessage("");
     setError("");
+  }
+
+  function handleTipoAtendimentoChange(tipoAtendimento: string) {
+    if (tipoAtendimento === "Serviço interno") {
+      setForm({
+        ...form,
+        tipo_atendimento: "Serviço interno",
+        cliente: "Cobop / Interno",
+        cidade: "Ourinhos",
+        agendamento_id: "",
+        situacao_atendimento: defaultSituacaoAtendimento
+      });
+      return;
+    }
+
+    setForm({
+      ...form,
+      tipo_atendimento: "Cliente",
+      cliente: form.cliente === "Cobop / Interno" ? "" : form.cliente,
+      cidade: form.cidade === "Ourinhos" ? "" : form.cidade
+    });
+  }
+
+  function handleServicoInternoSuggestionChange(servico: string) {
+    if (!servico) {
+      return;
+    }
+
+    setForm({
+      ...form,
+      servico_realizado: servico === "Outros" ? "" : servico
+    });
   }
 
   function handlePrepareMovement(record: DiarioOperacional) {
@@ -706,6 +768,7 @@ export default function DiarioPage() {
 
     setForm({
       ...form,
+      tipo_atendimento: "Cliente",
       agendamento_id: agendamentoId,
       cliente: selectedAgenda.cliente,
       cidade: selectedAgenda.cidade ?? "",
@@ -893,8 +956,24 @@ export default function DiarioPage() {
                   </label>
 
                   <label>
+                    Tipo de atendimento
+                    <select
+                      required
+                      value={normalizeTipoAtendimento(form.tipo_atendimento)}
+                      onChange={(event) => handleTipoAtendimentoChange(event.target.value)}
+                    >
+                      {tiposAtendimento.map((tipo) => (
+                        <option key={tipo} value={tipo}>
+                          {tipo}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label>
                     Cliente
                     <input
+                      disabled={normalizeTipoAtendimento(form.tipo_atendimento) === "Serviço interno"}
                       required
                       type="text"
                       value={form.cliente}
@@ -905,6 +984,7 @@ export default function DiarioPage() {
                   <label>
                     Cidade
                     <input
+                      disabled={normalizeTipoAtendimento(form.tipo_atendimento) === "Serviço interno"}
                       type="text"
                       value={form.cidade}
                       onChange={(event) => setForm({ ...form, cidade: event.target.value })}
@@ -944,6 +1024,7 @@ export default function DiarioPage() {
                   <label>
                     Agendamento Vinculado
                     <select
+                      disabled={normalizeTipoAtendimento(form.tipo_atendimento) === "Serviço interno"}
                       value={form.agendamento_id}
                       onChange={(event) => handleAgendaChange(event.target.value)}
                     >
@@ -955,6 +1036,23 @@ export default function DiarioPage() {
                       ))}
                     </select>
                   </label>
+
+                  {normalizeTipoAtendimento(form.tipo_atendimento) === "Serviço interno" ? (
+                    <label>
+                      Sugestão de serviço interno
+                      <select
+                        value=""
+                        onChange={(event) => handleServicoInternoSuggestionChange(event.target.value)}
+                      >
+                        <option value="">Selecione uma sugestão</option>
+                        {servicosInternosSugeridos.map((servico) => (
+                          <option key={servico} value={servico}>
+                            {servico}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
 
                   <label>
                     Servico inicial
@@ -1159,6 +1257,7 @@ export default function DiarioPage() {
                           <span>
                             Data original: {record.data} | {record.tecnico}
                           </span>
+                          <span>Tipo: {diarioTipoAtendimento(record)}</span>
                           <span>Cidade: {record.cidade ?? "Nao informado"}</span>
                           <span>
                             Situacao:{" "}

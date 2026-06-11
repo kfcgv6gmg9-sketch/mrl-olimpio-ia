@@ -10,6 +10,8 @@ import { supabase } from "@/lib/supabase";
 import { DiarioAjudante, DiarioOperacional, Funcionario } from "@/types/database";
 
 type DashboardIndicators = {
+  clientes: number;
+  servicosInternos: number;
   abertos: number;
   emAndamento: number;
   aguardandoCliente: number;
@@ -19,6 +21,8 @@ type DashboardIndicators = {
 };
 
 const initialIndicators: DashboardIndicators = {
+  clientes: 0,
+  servicosInternos: 0,
   abertos: 0,
   emAndamento: 0,
   aguardandoCliente: 0,
@@ -247,6 +251,8 @@ function HomeDashboard() {
         const funcionarios = (funcionariosResponse.data ?? []) as Funcionario[];
 
         setIndicators({
+          clientes: countByType(attendances, "Cliente"),
+          servicosInternos: countByType(attendances, "Serviço interno"),
           abertos: countByStatus(attendances, "Aberto"),
           emAndamento: countByStatus(attendances, "Em andamento"),
           aguardandoCliente: countByStatus(attendances, "Aguardando Cliente"),
@@ -348,6 +354,8 @@ function HomeDashboard() {
         {dashboardLoading ? <p className="status-text">Carregando indicadores...</p> : null}
 
         <div className="dashboard-grid">
+          <DashboardCard label="Diario" title="Atendimentos de Clientes" value={indicators.clientes} />
+          <DashboardCard label="Diario" title="Serviços Internos" value={indicators.servicosInternos} />
           <DashboardCard label="Diario" title="Atendimentos Abertos" value={indicators.abertos} />
           <DashboardCard label="Diario" title="Em Andamento" value={indicators.emAndamento} />
           <DashboardCard label="Diario" title="Aguardando Cliente" value={indicators.aguardandoCliente} />
@@ -463,6 +471,22 @@ function DashboardCard({ label, title, value }: { label: string; title: string; 
 
 function countByStatus(records: DiarioOperacional[], status: string) {
   return records.filter((record) => record.status_atendimento === status).length;
+}
+
+function countByType(records: DiarioOperacional[], type: string) {
+  return records.filter((record) => diarioTipoAtendimento(record) === type).length;
+}
+
+function normalizeTipoAtendimento(value?: string | null) {
+  return value === "Serviço interno" ? "Serviço interno" : "Cliente";
+}
+
+function diarioTipoAtendimento(record: Pick<DiarioOperacional, "tipo_atendimento" | "cliente">) {
+  if (record.tipo_atendimento) {
+    return normalizeTipoAtendimento(record.tipo_atendimento);
+  }
+
+  return record.cliente === "Cobop / Interno" ? "Serviço interno" : "Cliente";
 }
 
 function buildTechnicianIndicators(

@@ -21,6 +21,7 @@ type DiarioReportRecord = {
   tecnico: string;
   funcao: string;
   cliente: string;
+  tipo_atendimento: string;
   servico_realizado: string;
   status_atendimento: string | null;
   observacao: string | null;
@@ -36,6 +37,7 @@ type AgendaFilters = {
 type DiarioFilters = AgendaFilters & {
   tecnico: string;
   situacaoAtendimento: string;
+  tipoAtendimento: string;
 };
 
 type DiarioQuickFilter = "Todos" | "Em andamento" | "Finalizados";
@@ -53,7 +55,8 @@ const initialDiarioFilters: DiarioFilters = {
   dataFim: "",
   situacaoAgendamento: "",
   tecnico: "",
-  situacaoAtendimento: ""
+  situacaoAtendimento: "",
+  tipoAtendimento: ""
 };
 
 const statusAtendimento = [
@@ -461,6 +464,20 @@ export default function RelatoriosPage() {
                   </select>
                 </label>
 
+                <label>
+                  Tipo de atendimento
+                  <select
+                    value={diarioFilters.tipoAtendimento}
+                    onChange={(event) =>
+                      setDiarioFilters({ ...diarioFilters, tipoAtendimento: event.target.value })
+                    }
+                  >
+                    <option value="">Todos</option>
+                    <option value="Cliente">Cliente</option>
+                    <option value="Serviço interno">Serviço interno</option>
+                  </select>
+                </label>
+
                 <div className="button-row">
                   <button className="primary-button" type="submit">
                     Filtrar
@@ -606,6 +623,18 @@ function statusBadgeClass(status: string | null) {
   return "status-badge";
 }
 
+function normalizeTipoAtendimento(value?: string | null) {
+  return value === "Serviço interno" ? "Serviço interno" : "Cliente";
+}
+
+function diarioTipoAtendimento(record: Pick<DiarioOperacional, "tipo_atendimento" | "cliente">) {
+  if (record.tipo_atendimento) {
+    return normalizeTipoAtendimento(record.tipo_atendimento);
+  }
+
+  return record.cliente === "Cobop / Interno" ? "Serviço interno" : "Cliente";
+}
+
 function buildDiarioReportRows(
   diarios: DiarioOperacional[],
   movements: DiarioMovimentacao[],
@@ -618,6 +647,7 @@ function buildDiarioReportRows(
   const technicianFilter = filters.tecnico.trim().toLowerCase();
   const matchesTechnicianFilter = (name: string) => !technicianFilter || name.toLowerCase().includes(technicianFilter);
   const matchesStatusFilter = (status: string | null) => !filters.situacaoAtendimento || status === filters.situacaoAtendimento;
+  const matchesTypeFilter = (tipo: string) => !filters.tipoAtendimento || tipo === filters.tipoAtendimento;
   const helperRows = (movement: DiarioMovimentacao, base: Omit<DiarioReportRecord, "id" | "tecnico" | "funcao">) =>
     helpers
       .filter((helper) => helper.movimentacao_id === movement.id)
@@ -643,6 +673,7 @@ function buildDiarioReportRows(
     const base = {
       data: movement.data,
       cliente: diario.cliente,
+      tipo_atendimento: diarioTipoAtendimento(diario),
       servico_realizado: movement.servico_realizado,
       status_atendimento: principalStatus,
       observacao: movement.observacao
@@ -657,7 +688,12 @@ function buildDiarioReportRows(
       ...helperRows(movement, base)
     ];
 
-    return rows.filter((record) => matchesTechnicianFilter(record.tecnico) && matchesStatusFilter(record.status_atendimento));
+    return rows.filter(
+      (record) =>
+        matchesTechnicianFilter(record.tecnico) &&
+        matchesStatusFilter(record.status_atendimento) &&
+        matchesTypeFilter(record.tipo_atendimento)
+    );
   });
 
   if (rowsFromMovements.length > 0) {
@@ -670,6 +706,7 @@ function buildDiarioReportRows(
       const base = {
         data: record.data,
         cliente: record.cliente,
+        tipo_atendimento: diarioTipoAtendimento(record),
         servico_realizado: record.servico_realizado,
         status_atendimento: record.status_atendimento ?? record.situacao_atendimento ?? null,
         observacao: record.observacao
@@ -683,7 +720,12 @@ function buildDiarioReportRows(
         }
       ];
 
-      return rows.filter((row) => matchesTechnicianFilter(row.tecnico) && matchesStatusFilter(row.status_atendimento));
+      return rows.filter(
+        (row) =>
+          matchesTechnicianFilter(row.tecnico) &&
+          matchesStatusFilter(row.status_atendimento) &&
+          matchesTypeFilter(row.tipo_atendimento)
+      );
     });
 }
 
@@ -703,6 +745,10 @@ function legacyDiarioMatchesFilters(record: DiarioOperacional, filters: DiarioFi
   }
 
   if (filters.situacaoAtendimento && record.status_atendimento !== filters.situacaoAtendimento) {
+    return false;
+  }
+
+  if (filters.tipoAtendimento && diarioTipoAtendimento(record) !== filters.tipoAtendimento) {
     return false;
   }
 

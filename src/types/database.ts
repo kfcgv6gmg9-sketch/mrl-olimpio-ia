@@ -16,6 +16,7 @@ export type DiarioOperacional = {
   data: string;
   tecnico: string;
   cliente: string;
+  tipo_atendimento: "Cliente" | "Serviço interno" | null;
   cidade: string | null;
   servico_realizado: string;
   observacao: string | null;
