@@ -18,7 +18,7 @@ type VehicleForm = {
   data: string;
   placa: string;
   veiculo: string;
-  motorista: string;
+  fornecedor: string;
   tipo_despesa: MovementType | "";
   valor: string;
   quilometragem: string;
@@ -28,7 +28,7 @@ type VehicleForm = {
 
 type VehicleFilters = {
   placa: string;
-  motorista: string;
+  fornecedor: string;
   dataInicio: string;
   dataFim: string;
   tipo_despesa: string;
@@ -38,7 +38,7 @@ const initialForm: VehicleForm = {
   data: "",
   placa: "",
   veiculo: "",
-  motorista: "",
+  fornecedor: "",
   tipo_despesa: "",
   valor: "",
   quilometragem: "",
@@ -48,7 +48,7 @@ const initialForm: VehicleForm = {
 
 const initialFilters: VehicleFilters = {
   placa: "",
-  motorista: "",
+  fornecedor: "",
   dataInicio: "",
   dataFim: "",
   tipo_despesa: ""
@@ -80,8 +80,8 @@ export default function VeiculosPage() {
       query = query.ilike("placa", `%${currentFilters.placa.trim()}%`);
     }
 
-    if (currentFilters.motorista.trim()) {
-      query = query.ilike("motorista", `%${currentFilters.motorista.trim()}%`);
+    if (currentFilters.fornecedor.trim()) {
+      query = query.ilike("fornecedor", `%${currentFilters.fornecedor.trim()}%`);
     }
 
     if (currentFilters.dataInicio) {
@@ -139,7 +139,7 @@ export default function VeiculosPage() {
       data: form.data,
       placa: form.placa.trim().toUpperCase(),
       veiculo: form.veiculo.trim(),
-      motorista: form.motorista.trim() || null,
+      fornecedor: form.fornecedor.trim() || null,
       tipo_despesa: form.tipo_despesa,
       valor: Number(form.valor),
       quilometragem: form.quilometragem ? Number(form.quilometragem) : null,
@@ -174,7 +174,7 @@ export default function VeiculosPage() {
       data: record.data,
       placa: record.placa,
       veiculo: record.veiculo,
-      motorista: record.motorista ?? "",
+      fornecedor: vehicleSupplier(record),
       tipo_despesa: record.tipo_despesa,
       valor: String(record.valor),
       quilometragem: record.quilometragem ? String(record.quilometragem) : "",
@@ -250,7 +250,7 @@ export default function VeiculosPage() {
       title: "Relatório por Placa",
       period: formatPeriod(filters),
       placa: filters.placa.trim() || "Todas",
-      fornecedor: filters.motorista.trim() || "Todos",
+      fornecedor: filters.fornecedor.trim() || "Todos",
       tipoDespesa: filters.tipo_despesa || "Todos",
       rows: records
     });
@@ -261,7 +261,7 @@ export default function VeiculosPage() {
       title: "Relatório por Período",
       period: formatPeriod(filters),
       placa: filters.placa.trim() || "Todas",
-      fornecedor: filters.motorista.trim() || "Todos",
+      fornecedor: filters.fornecedor.trim() || "Todos",
       tipoDespesa: filters.tipo_despesa || "Todos",
       rows: records
     });
@@ -331,8 +331,8 @@ export default function VeiculosPage() {
                   Fornecedor
                   <input
                     type="text"
-                    value={form.motorista}
-                    onChange={(event) => setForm({ ...form, motorista: event.target.value })}
+                    value={form.fornecedor}
+                    onChange={(event) => setForm({ ...form, fornecedor: event.target.value })}
                   />
                 </label>
 
@@ -438,8 +438,8 @@ export default function VeiculosPage() {
                     Fornecedor
                     <input
                       type="text"
-                      value={filters.motorista}
-                      onChange={(event) => setFilters({ ...filters, motorista: event.target.value })}
+                      value={filters.fornecedor}
+                      onChange={(event) => setFilters({ ...filters, fornecedor: event.target.value })}
                     />
                   </label>
 
@@ -501,7 +501,7 @@ export default function VeiculosPage() {
                         <span>
                           {record.data} | {record.tipo_despesa} | {formatCurrency(record.valor)}
                         </span>
-                        <span>Fornecedor: {record.motorista ?? "Não informado"}</span>
+                        <span>Fornecedor: {vehicleSupplier(record) || "Não informado"}</span>
                         <span>Quilometragem: {formatMileage(record.quilometragem)}</span>
                         {record.descricao ? <p>{record.descricao}</p> : null}
                         {record.observacao ? <p>{record.observacao}</p> : null}
@@ -526,12 +526,16 @@ export default function VeiculosPage() {
   );
 }
 
+function vehicleSupplier(record: DespesaVeiculo) {
+  return record.fornecedor ?? record.motorista ?? "";
+}
+
 function vehicleCsvRow(record: DespesaVeiculo) {
   return {
     data: record.data,
     placa: record.placa,
     veiculo: record.veiculo,
-    fornecedor: record.motorista ?? "",
+    fornecedor: vehicleSupplier(record),
     tipo_despesa: record.tipo_despesa,
     valor: formatCurrency(record.valor),
     quilometragem: record.quilometragem ? String(record.quilometragem) : "",
@@ -618,7 +622,7 @@ function printPdfReport({
               <td>${escapeHtml(row.data)}</td>
               <td>${escapeHtml(row.placa)}</td>
               <td>${escapeHtml(row.veiculo)}</td>
-              <td>${escapeHtml(row.motorista ?? "")}</td>
+              <td>${escapeHtml(vehicleSupplier(row))}</td>
               <td>${escapeHtml(row.tipo_despesa)}</td>
               <td>${escapeHtml(formatCurrency(row.valor))}</td>
               <td>${escapeHtml(formatMileage(row.quilometragem))}</td>

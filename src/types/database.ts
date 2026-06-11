@@ -80,7 +80,8 @@ export type DespesaVeiculo = {
   data: string;
   placa: string;
   veiculo: string;
-  motorista: string | null;
+  fornecedor: string | null;
+  motorista?: string | null;
   tipo_despesa: "Abastecimento" | "Manutenção" | "Lavagem" | "Pedágio" | "Outros";
   valor: number;
   quilometragem: number | null;
