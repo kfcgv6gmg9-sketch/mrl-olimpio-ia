@@ -8,7 +8,7 @@ import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { logAudit } from "@/lib/audit";
 import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
-import { DespesaVeiculo } from "@/types/database";
+import { DespesaVeiculo, Veiculo } from "@/types/database";
 
 const movementTypes = ["Abastecimento", "Manutenção", "Lavagem", "Pedágio", "Outros"] as const;
 
@@ -34,6 +34,11 @@ type VehicleFilters = {
   tipo_despesa: string;
 };
 
+type PlateForm = {
+  placa: string;
+  veiculo: string;
+};
+
 const initialForm: VehicleForm = {
   data: "",
   placa: "",
@@ -54,17 +59,41 @@ const initialFilters: VehicleFilters = {
   tipo_despesa: ""
 };
 
+const initialPlateForm: PlateForm = {
+  placa: "",
+  veiculo: ""
+};
+
 export default function VeiculosPage() {
   const [records, setRecords] = useState<DespesaVeiculo[]>([]);
+  const [vehicles, setVehicles] = useState<Veiculo[]>([]);
   const [form, setForm] = useState<VehicleForm>(initialForm);
+  const [plateForm, setPlateForm] = useState<PlateForm>(initialPlateForm);
   const [filters, setFilters] = useState<VehicleFilters>(initialFilters);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingPlate, setSavingPlate] = useState(false);
+  const [showPlateForm, setShowPlateForm] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const { email, loading: accessLoading, metadata } = useCurrentAccess();
   const canAccessVeiculos = canAccessModule(email, metadata, "veiculos");
+
+  const loadVehicles = useCallback(async () => {
+    const { data, error: vehicleError } = await supabase
+      .from("veiculos")
+      .select("id,placa,modelo,ativo,created_at")
+      .eq("ativo", true)
+      .order("placa", { ascending: true });
+
+    if (vehicleError) {
+      setError(vehicleError.message);
+      return;
+    }
+
+    setVehicles((data ?? []) as Veiculo[]);
+  }, []);
 
   const loadRecords = useCallback(async (currentFilters: VehicleFilters) => {
     setLoading(true);
@@ -77,7 +106,7 @@ export default function VeiculosPage() {
       .order("created_at", { ascending: false });
 
     if (currentFilters.placa.trim()) {
-      query = query.ilike("placa", `%${currentFilters.placa.trim()}%`);
+      query = query.eq("placa", currentFilters.placa.trim());
     }
 
     if (currentFilters.fornecedor.trim()) {
@@ -110,8 +139,9 @@ export default function VeiculosPage() {
   useEffect(() => {
     if (!accessLoading && canAccessVeiculos) {
       loadRecords(initialFilters);
+      loadVehicles();
     }
-  }, [accessLoading, canAccessVeiculos, loadRecords]);
+  }, [accessLoading, canAccessVeiculos, loadRecords, loadVehicles]);
 
   const totals = useMemo(() => {
     const initialTotals = movementTypes.reduce<Record<MovementType, number>>((accumulator, type) => {
@@ -166,6 +196,57 @@ export default function VeiculosPage() {
     }
 
     setSaving(false);
+  }
+
+  function handleVehicleSelection(plate: string) {
+    const vehicle = vehicles.find((item) => item.placa === plate);
+
+    setForm({
+      ...form,
+      placa: plate,
+      veiculo: vehicle ? vehicleName(vehicle) : ""
+    });
+  }
+
+  async function handleCreatePlate() {
+    const placa = plateForm.placa.trim().toUpperCase();
+    const veiculo = plateForm.veiculo.trim();
+
+    if (!placa || !veiculo) {
+      setError("Informe a placa e o veÃ­culo.");
+      return;
+    }
+
+    setSavingPlate(true);
+    setMessage("");
+    setError("");
+
+    const { data, error: insertError } = await supabase
+      .from("veiculos")
+      .insert({
+        placa,
+        modelo: veiculo,
+        ativo: true
+      })
+      .select("id,placa,modelo,ativo,created_at")
+      .single();
+
+    if (insertError) {
+      setError(insertError.message);
+    } else {
+      const newVehicle = data as Veiculo;
+      setVehicles((currentVehicles) =>
+        [...currentVehicles.filter((vehicle) => vehicle.placa !== newVehicle.placa), newVehicle].sort((left, right) =>
+          left.placa.localeCompare(right.placa)
+        )
+      );
+      setForm({ ...form, placa: newVehicle.placa, veiculo: vehicleName(newVehicle) });
+      setPlateForm(initialPlateForm);
+      setShowPlateForm(false);
+      setMessage("Placa cadastrada.");
+    }
+
+    setSavingPlate(false);
   }
 
   function handleEdit(record: DespesaVeiculo) {
@@ -267,6 +348,9 @@ export default function VeiculosPage() {
     });
   }
 
+  const formPlateIsLegacy = Boolean(form.placa) && !vehicles.some((vehicle) => vehicle.placa === form.placa);
+  const filterPlateIsLegacy = Boolean(filters.placa) && !vehicles.some((vehicle) => vehicle.placa === filters.placa);
+
   return (
     <main className="app-shell">
       <div className="app-container">
@@ -297,6 +381,48 @@ export default function VeiculosPage() {
               <form className="panel form-grid" onSubmit={handleSubmit}>
                 <h2>{editingId ? "Editar movimentação" : "Nova movimentação"}</h2>
 
+                <button className="secondary-button" onClick={() => setShowPlateForm((current) => !current)} type="button">
+                  Adicionar placa
+                </button>
+
+                {showPlateForm ? (
+                  <fieldset className="inline-fieldset">
+                    <legend>Nova placa</legend>
+                    <label>
+                      Placa
+                      <input
+                        type="text"
+                        value={plateForm.placa}
+                        onChange={(event) => setPlateForm({ ...plateForm, placa: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Veículo
+                      <input
+                        type="text"
+                        value={plateForm.veiculo}
+                        onChange={(event) => setPlateForm({ ...plateForm, veiculo: event.target.value })}
+                      />
+                    </label>
+                    <div className="button-row">
+                      <button className="primary-button" disabled={savingPlate} onClick={handleCreatePlate} type="button">
+                        {savingPlate ? "Salvando..." : "Salvar placa"}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        disabled={savingPlate}
+                        onClick={() => {
+                          setShowPlateForm(false);
+                          setPlateForm(initialPlateForm);
+                        }}
+                        type="button"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </fieldset>
+                ) : null}
+
                 <label>
                   Data
                   <input
@@ -309,21 +435,32 @@ export default function VeiculosPage() {
 
                 <label>
                   Placa
-                  <input
+                  <select
                     required
-                    type="text"
                     value={form.placa}
-                    onChange={(event) => setForm({ ...form, placa: event.target.value })}
-                  />
+                    onChange={(event) => handleVehicleSelection(event.target.value)}
+                  >
+                    <option value="">Selecione</option>
+                    {formPlateIsLegacy ? (
+                      <option value={form.placa}>
+                        {form.placa} | {form.veiculo || "Registro antigo"}
+                      </option>
+                    ) : null}
+                    {vehicles.map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.placa}>
+                        {vehicle.placa} | {vehicleName(vehicle)}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label>
                   Veículo
                   <input
                     required
+                    readOnly
                     type="text"
                     value={form.veiculo}
-                    onChange={(event) => setForm({ ...form, veiculo: event.target.value })}
                   />
                 </label>
 
@@ -427,11 +564,18 @@ export default function VeiculosPage() {
                 <form className="filter-grid" onSubmit={handleFilter}>
                   <label>
                     Placa
-                    <input
-                      type="text"
+                    <select
                       value={filters.placa}
                       onChange={(event) => setFilters({ ...filters, placa: event.target.value })}
-                    />
+                    >
+                      <option value="">Todas</option>
+                      {filterPlateIsLegacy ? <option value={filters.placa}>{filters.placa}</option> : null}
+                      {vehicles.map((vehicle) => (
+                        <option key={vehicle.id} value={vehicle.placa}>
+                          {vehicle.placa} | {vehicleName(vehicle)}
+                        </option>
+                      ))}
+                    </select>
                   </label>
 
                   <label>
@@ -528,6 +672,10 @@ export default function VeiculosPage() {
 
 function vehicleSupplier(record: DespesaVeiculo) {
   return record.fornecedor ?? record.motorista ?? "";
+}
+
+function vehicleName(vehicle: Veiculo) {
+  return vehicle.veiculo ?? vehicle.modelo ?? "";
 }
 
 function vehicleCsvRow(record: DespesaVeiculo) {

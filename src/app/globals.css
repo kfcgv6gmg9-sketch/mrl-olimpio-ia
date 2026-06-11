@@ -224,6 +224,22 @@ select {
   resize: vertical;
 }
 
+.inline-fieldset {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 0;
+  padding: 12px;
+}
+
+.inline-fieldset legend {
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 4px;
+}
+
 .multi-select-panel {
   display: grid;
   gap: 8px;

@@ -91,6 +91,15 @@ export type DespesaVeiculo = {
   updated_at: string;
 };
 
+export type Veiculo = {
+  id: string;
+  placa: string;
+  veiculo?: string | null;
+  modelo?: string | null;
+  ativo: boolean | null;
+  created_at: string;
+};
+
 export type Auditoria = {
   id: string;
   usuario: string;
