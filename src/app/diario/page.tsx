@@ -241,6 +241,8 @@ export default function DiarioPage() {
   const [movementForm, setMovementForm] = useState<MovimentacaoForm>(initialMovimentacaoForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [diarioQuickFilter, setDiarioQuickFilter] = useState<DiarioQuickFilter>("Todos");
+  const [diarioTecnicoFilter, setDiarioTecnicoFilter] = useState("");
+  const [diarioSearch, setDiarioSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -846,6 +848,42 @@ export default function DiarioPage() {
       .map((helper) => funcionarioName(helper.funcionario_id));
   }
 
+  function recordMatchesTecnicoFilter(record: DiarioOperacional, tecnico: string) {
+    const normalizedTecnico = tecnico.trim().toLowerCase();
+
+    if (!normalizedTecnico) {
+      return true;
+    }
+
+    const mainTecnicoMatches = record.tecnico.trim().toLowerCase() === normalizedTecnico;
+    const helperMatches = recordHelpers(record.id).some(
+      (helper) => funcionarioName(helper.funcionario_id).trim().toLowerCase() === normalizedTecnico
+    );
+    const movementMatches = movements
+      .filter((movement) => movement.diario_id === record.id)
+      .some((movement) => movement.tecnico.trim().toLowerCase() === normalizedTecnico);
+    const movementHelperMatches = movements
+      .filter((movement) => movement.diario_id === record.id)
+      .some((movement) =>
+        movementHelperNames(movement.id).some((helperName) => helperName.trim().toLowerCase() === normalizedTecnico)
+      );
+
+    return mainTecnicoMatches || helperMatches || movementMatches || movementHelperMatches;
+  }
+
+  function recordMatchesSearch(record: DiarioOperacional, search: string) {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    return (
+      record.cliente.toLowerCase().includes(normalizedSearch) ||
+      (record.cidade ?? "").toLowerCase().includes(normalizedSearch)
+    );
+  }
+
   function handleTecnicoChange(tecnico: string) {
     setForm({
       ...form,
@@ -891,10 +929,16 @@ export default function DiarioPage() {
     (funcionario) => !funcionarioMatchesTecnico(funcionario, movementForm.tecnico)
   );
   const selectedMovementHelperNames = movementForm.ajudantes.map((funcionarioId) => funcionarioName(funcionarioId));
-  const visibleRecords = sortDiarioRecords(filterDiarioRecordsByQuickStatus(records, diarioQuickFilter));
-  const totalRecords = records.length;
-  const inProgressRecords = records.filter((record) => record.status_atendimento === "Em andamento").length;
-  const finalizedRecords = records.filter((record) => record.status_atendimento === "Finalizado").length;
+  const activeFuncionarioOptions = [...funcionarios].sort((first, second) => first.nome.localeCompare(second.nome));
+  const recordsFilteredByTecnicoAndSearch = records.filter(
+    (record) => recordMatchesTecnicoFilter(record, diarioTecnicoFilter) && recordMatchesSearch(record, diarioSearch)
+  );
+  const visibleRecords = sortDiarioRecords(
+    filterDiarioRecordsByQuickStatus(recordsFilteredByTecnicoAndSearch, diarioQuickFilter)
+  );
+  const totalRecords = visibleRecords.length;
+  const inProgressRecords = visibleRecords.filter((record) => record.status_atendimento === "Em andamento").length;
+  const finalizedRecords = visibleRecords.filter((record) => record.status_atendimento === "Finalizado").length;
 
   return (
     <main className="app-shell">
@@ -1203,9 +1247,30 @@ export default function DiarioPage() {
               <section className="panel">
                 <div className="section-heading">
                   <h2>Atendimentos cadastrados</h2>
-                  <button className="secondary-button" onClick={loadRecords} type="button">
-                    Atualizar
-                  </button>
+                  <div className="list-filter-row">
+                    <select
+                      aria-label="Filtrar por técnico"
+                      value={diarioTecnicoFilter}
+                      onChange={(event) => setDiarioTecnicoFilter(event.target.value)}
+                    >
+                      <option value="">Todos os técnicos</option>
+                      {activeFuncionarioOptions.map((funcionario) => (
+                        <option key={funcionario.id} value={funcionario.nome}>
+                          {funcionario.nome}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      aria-label="Pesquisar cliente ou cidade"
+                      placeholder="Pesquisar cliente ou cidade..."
+                      type="search"
+                      value={diarioSearch}
+                      onChange={(event) => setDiarioSearch(event.target.value)}
+                    />
+                    <button className="secondary-button" onClick={loadRecords} type="button">
+                      Atualizar
+                    </button>
+                  </div>
                 </div>
 
                 {loading ? <p className="status-text">Carregando registros...</p> : null}

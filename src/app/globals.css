@@ -274,6 +274,27 @@ select {
   margin-bottom: 14px;
 }
 
+.list-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.list-filter-row select,
+.list-filter-row input {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--foreground);
+  padding: 9px 12px;
+}
+
+.list-filter-row input {
+  min-width: 240px;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;
