@@ -39,6 +39,10 @@ type PlateForm = {
   veiculo: string;
 };
 
+type VehicleReportRow = DespesaVeiculo & {
+  veiculo_visual: string;
+};
+
 const initialForm: VehicleForm = {
   data: "",
   placa: "",
@@ -159,6 +163,11 @@ export default function VeiculosPage() {
     );
   }, [records]);
 
+  function getVehicleNameByPlate(plate: string) {
+    const vehicle = vehicles.find((item) => item.placa === plate);
+    return vehicle ? vehicleName(vehicle) : "";
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -168,7 +177,6 @@ export default function VeiculosPage() {
     const payload = {
       data: form.data,
       placa: form.placa.trim().toUpperCase(),
-      veiculo: form.veiculo.trim(),
       fornecedor: form.fornecedor.trim() || null,
       tipo_despesa: form.tipo_despesa,
       valor: Number(form.valor),
@@ -199,12 +207,10 @@ export default function VeiculosPage() {
   }
 
   function handleVehicleSelection(plate: string) {
-    const vehicle = vehicles.find((item) => item.placa === plate);
-
     setForm({
       ...form,
       placa: plate,
-      veiculo: vehicle ? vehicleName(vehicle) : ""
+      veiculo: getVehicleNameByPlate(plate)
     });
   }
 
@@ -254,7 +260,7 @@ export default function VeiculosPage() {
     setForm({
       data: record.data,
       placa: record.placa,
-      veiculo: record.veiculo,
+      veiculo: getVehicleNameByPlate(record.placa),
       fornecedor: vehicleSupplier(record),
       tipo_despesa: record.tipo_despesa,
       valor: String(record.valor),
@@ -322,7 +328,7 @@ export default function VeiculosPage() {
         "descricao",
         "observacao"
       ],
-      records.map(vehicleCsvRow)
+      records.map((record) => vehicleCsvRow(record, getVehicleNameByPlate(record.placa)))
     );
   }
 
@@ -333,7 +339,7 @@ export default function VeiculosPage() {
       placa: filters.placa.trim() || "Todas",
       fornecedor: filters.fornecedor.trim() || "Todos",
       tipoDespesa: filters.tipo_despesa || "Todos",
-      rows: records
+      rows: records.map((record) => ({ ...record, veiculo_visual: getVehicleNameByPlate(record.placa) }))
     });
   }
 
@@ -344,7 +350,7 @@ export default function VeiculosPage() {
       placa: filters.placa.trim() || "Todas",
       fornecedor: filters.fornecedor.trim() || "Todos",
       tipoDespesa: filters.tipo_despesa || "Todos",
-      rows: records
+      rows: records.map((record) => ({ ...record, veiculo_visual: getVehicleNameByPlate(record.placa) }))
     });
   }
 
@@ -457,7 +463,6 @@ export default function VeiculosPage() {
                 <label>
                   Veículo
                   <input
-                    required
                     readOnly
                     type="text"
                     value={form.veiculo}
@@ -640,7 +645,7 @@ export default function VeiculosPage() {
                     <article className="record-card" key={record.id}>
                       <div>
                         <strong>
-                          {record.veiculo} | {record.placa}
+                          {getVehicleNameByPlate(record.placa) || "Veiculo nao cadastrado"} | {record.placa}
                         </strong>
                         <span>
                           {record.data} | {record.tipo_despesa} | {formatCurrency(record.valor)}
@@ -678,11 +683,11 @@ function vehicleName(vehicle: Veiculo) {
   return vehicle.veiculo ?? vehicle.modelo ?? "";
 }
 
-function vehicleCsvRow(record: DespesaVeiculo) {
+function vehicleCsvRow(record: DespesaVeiculo, veiculo: string) {
   return {
     data: record.data,
     placa: record.placa,
-    veiculo: record.veiculo,
+    veiculo,
     fornecedor: vehicleSupplier(record),
     tipo_despesa: record.tipo_despesa,
     valor: formatCurrency(record.valor),
@@ -753,7 +758,7 @@ function printPdfReport({
   placa: string;
   fornecedor: string;
   tipoDespesa: string;
-  rows: DespesaVeiculo[];
+  rows: VehicleReportRow[];
 }) {
   const reportWindow = window.open("", "_blank", "width=900,height=700");
 
@@ -769,7 +774,7 @@ function printPdfReport({
             <tr>
               <td>${escapeHtml(row.data)}</td>
               <td>${escapeHtml(row.placa)}</td>
-              <td>${escapeHtml(row.veiculo)}</td>
+              <td>${escapeHtml(row.veiculo_visual)}</td>
               <td>${escapeHtml(vehicleSupplier(row))}</td>
               <td>${escapeHtml(row.tipo_despesa)}</td>
               <td>${escapeHtml(formatCurrency(row.valor))}</td>
