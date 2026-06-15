@@ -365,8 +365,8 @@ function HomeDashboard() {
         </div>
 
         <div className="dashboard-detail-grid">
-          <section className="dashboard-subsection" aria-label="Indicadores por tecnico">
-            <h3>Indicadores por Técnico</h3>
+          <section className="dashboard-subsection" aria-label="Indicadores por tecnico finalizados">
+            <h3>Indicadores por Técnico (Finalizados)</h3>
             <div className="dashboard-table-wrap">
               <table className="dashboard-table">
                 <thead>
@@ -494,13 +494,14 @@ function buildTechnicianIndicators(
   helpers: DiarioAjudante[],
   funcionarios: Funcionario[]
 ) {
-  const attendancesById = new Map(attendances.map((attendance) => [attendance.id, attendance]));
+  const finishedAttendances = attendances.filter((attendance) => attendance.status_atendimento === "Finalizado");
+  const attendancesById = new Map(finishedAttendances.map((attendance) => [attendance.id, attendance]));
   const funcionarioName = (funcionarioId: string) =>
     funcionarios.find((funcionario) => funcionario.id === funcionarioId)?.nome ?? funcionarioId;
 
   return funcionarios.map((funcionario) => {
     const tecnico = funcionario.nome;
-    const principal = attendances.filter((attendance) => sameName(attendance.tecnico, tecnico)).length;
+    const principal = finishedAttendances.filter((attendance) => sameName(attendance.tecnico, tecnico)).length;
     const ajudante = helpers.filter((helper) => {
       const attendance = attendancesById.get(helper.diario_id);
 
