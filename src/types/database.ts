@@ -82,7 +82,16 @@ export type DespesaVeiculo = {
   veiculo?: string | null;
   fornecedor: string | null;
   motorista?: string | null;
-  tipo_despesa: "Abastecimento" | "Manutenção" | "Lavagem" | "Pedágio" | "Outros";
+  tipo_despesa:
+    | "Abastecimento"
+    | "Combustível"
+    | "Manutenção"
+    | "Lavagem"
+    | "Pedágio"
+    | "Documentação"
+    | "Multa"
+    | "Outros";
+  tecnico_responsavel: string | null;
   valor: number;
   km_atual?: number | null;
   quilometragem: number | null;

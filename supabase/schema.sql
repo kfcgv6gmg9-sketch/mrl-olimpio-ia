@@ -123,12 +123,16 @@ create table if not exists public.despesas_veiculos (
   tipo_despesa text not null check (
     tipo_despesa in (
       'Abastecimento',
+      'Combustível',
       'Manutenção',
       'Lavagem',
       'Pedágio',
+      'Documentação',
+      'Multa',
       'Outros'
     )
   ),
+  tecnico_responsavel text,
   valor numeric(12,2) not null default 0,
   quilometragem numeric,
   descricao text,
@@ -136,6 +140,27 @@ create table if not exists public.despesas_veiculos (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.despesas_veiculos
+  add column if not exists tecnico_responsavel text;
+
+alter table public.despesas_veiculos
+  drop constraint if exists despesas_veiculos_tipo_despesa_check;
+
+alter table public.despesas_veiculos
+  add constraint despesas_veiculos_tipo_despesa_check
+  check (
+    tipo_despesa in (
+      'Abastecimento',
+      'Combustível',
+      'Manutenção',
+      'Lavagem',
+      'Pedágio',
+      'Documentação',
+      'Multa',
+      'Outros'
+    )
+  );
 
 -- =========================
 -- MANUTENÇÕES DE VEÍCULOS
@@ -178,6 +203,7 @@ select
   veiculo,
   motorista,
   tipo_despesa,
+  tecnico_responsavel,
   valor,
   quilometragem,
   descricao,

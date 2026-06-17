@@ -8,18 +8,20 @@ import { useCurrentAccess } from "@/hooks/useCurrentAccess";
 import { logAudit } from "@/lib/audit";
 import { canAccessModule } from "@/lib/accessControl";
 import { supabase } from "@/lib/supabase";
-import { DespesaVeiculo, Veiculo } from "@/types/database";
+import { DespesaVeiculo, Funcionario, Veiculo } from "@/types/database";
 
-const movementTypes = ["Abastecimento", "Manutenção", "Lavagem", "Pedágio", "Outros"] as const;
+const movementTypes = ["Abastecimento", "Manutenção", "Lavagem", "Pedágio", "Documentação", "Multa", "Outros"] as const;
 
 type MovementType = (typeof movementTypes)[number];
+type ExpenseType = DespesaVeiculo["tipo_despesa"];
 
 type VehicleForm = {
   data: string;
   placa: string;
   veiculo: string;
   fornecedor: string;
-  tipo_despesa: MovementType | "";
+  tipo_despesa: ExpenseType | "";
+  tecnico_responsavel: string;
   valor: string;
   quilometragem: string;
   descricao: string;
@@ -32,6 +34,7 @@ type VehicleFilters = {
   dataInicio: string;
   dataFim: string;
   tipo_despesa: string;
+  tecnico_responsavel: string;
 };
 
 type PlateForm = {
@@ -49,6 +52,7 @@ const initialForm: VehicleForm = {
   veiculo: "",
   fornecedor: "",
   tipo_despesa: "",
+  tecnico_responsavel: "",
   valor: "",
   quilometragem: "",
   descricao: "",
@@ -60,7 +64,8 @@ const initialFilters: VehicleFilters = {
   fornecedor: "",
   dataInicio: "",
   dataFim: "",
-  tipo_despesa: ""
+  tipo_despesa: "",
+  tecnico_responsavel: ""
 };
 
 const initialPlateForm: PlateForm = {
@@ -71,6 +76,7 @@ const initialPlateForm: PlateForm = {
 export default function VeiculosPage() {
   const [records, setRecords] = useState<DespesaVeiculo[]>([]);
   const [vehicles, setVehicles] = useState<Veiculo[]>([]);
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [form, setForm] = useState<VehicleForm>(initialForm);
   const [plateForm, setPlateForm] = useState<PlateForm>(initialPlateForm);
   const [filters, setFilters] = useState<VehicleFilters>(initialFilters);
@@ -97,6 +103,21 @@ export default function VeiculosPage() {
     }
 
     setVehicles((data ?? []) as Veiculo[]);
+  }, []);
+
+  const loadFuncionarios = useCallback(async () => {
+    const { data, error: funcionariosError } = await supabase
+      .from("funcionarios")
+      .select("*")
+      .eq("ativo", true)
+      .order("nome", { ascending: true });
+
+    if (funcionariosError) {
+      setError(funcionariosError.message);
+      return;
+    }
+
+    setFuncionarios((data ?? []) as Funcionario[]);
   }, []);
 
   const loadRecords = useCallback(async (currentFilters: VehicleFilters) => {
@@ -129,6 +150,10 @@ export default function VeiculosPage() {
       query = query.eq("tipo_despesa", currentFilters.tipo_despesa);
     }
 
+    if (currentFilters.tecnico_responsavel) {
+      query = query.eq("tecnico_responsavel", currentFilters.tecnico_responsavel);
+    }
+
     const { data, error: listError } = await query;
 
     if (listError) {
@@ -144,8 +169,9 @@ export default function VeiculosPage() {
     if (!accessLoading && canAccessVeiculos) {
       loadRecords(initialFilters);
       loadVehicles();
+      loadFuncionarios();
     }
-  }, [accessLoading, canAccessVeiculos, loadRecords, loadVehicles]);
+  }, [accessLoading, canAccessVeiculos, loadFuncionarios, loadRecords, loadVehicles]);
 
   const totals = useMemo(() => {
     const initialTotals = movementTypes.reduce<Record<MovementType, number>>((accumulator, type) => {
@@ -155,7 +181,9 @@ export default function VeiculosPage() {
 
     return records.reduce(
       (accumulator, record) => {
-        accumulator.byType[record.tipo_despesa] += Number(record.valor);
+        if (record.tipo_despesa in accumulator.byType) {
+          accumulator.byType[record.tipo_despesa as MovementType] += Number(record.valor);
+        }
         accumulator.total += Number(record.valor);
         return accumulator;
       },
@@ -179,6 +207,7 @@ export default function VeiculosPage() {
       placa: form.placa.trim().toUpperCase(),
       fornecedor: form.fornecedor.trim() || null,
       tipo_despesa: form.tipo_despesa,
+      tecnico_responsavel: form.tipo_despesa === "Multa" ? form.tecnico_responsavel.trim() : null,
       valor: Number(form.valor),
       quilometragem: form.quilometragem ? Number(form.quilometragem) : null,
       descricao: form.descricao.trim() || null,
@@ -263,6 +292,7 @@ export default function VeiculosPage() {
       veiculo: getVehicleNameByPlate(record.placa),
       fornecedor: vehicleSupplier(record),
       tipo_despesa: record.tipo_despesa,
+      tecnico_responsavel: record.tecnico_responsavel ?? "",
       valor: String(record.valor),
       quilometragem: record.quilometragem ? String(record.quilometragem) : "",
       descricao: record.descricao ?? "",
@@ -323,6 +353,7 @@ export default function VeiculosPage() {
         "veiculo",
         "fornecedor",
         "tipo_despesa",
+        "tecnico_responsavel",
         "valor",
         "quilometragem",
         "descricao",
@@ -339,6 +370,7 @@ export default function VeiculosPage() {
       placa: filters.placa.trim() || "Todas",
       fornecedor: filters.fornecedor.trim() || "Todos",
       tipoDespesa: filters.tipo_despesa || "Todos",
+      tecnicoResponsavel: filters.tecnico_responsavel.trim() || "Todos",
       rows: records.map((record) => ({ ...record, veiculo_visual: getVehicleNameByPlate(record.placa) }))
     });
   }
@@ -350,12 +382,14 @@ export default function VeiculosPage() {
       placa: filters.placa.trim() || "Todas",
       fornecedor: filters.fornecedor.trim() || "Todos",
       tipoDespesa: filters.tipo_despesa || "Todos",
+      tecnicoResponsavel: filters.tecnico_responsavel.trim() || "Todos",
       rows: records.map((record) => ({ ...record, veiculo_visual: getVehicleNameByPlate(record.placa) }))
     });
   }
 
   const formPlateIsLegacy = Boolean(form.placa) && !vehicles.some((vehicle) => vehicle.placa === form.placa);
   const filterPlateIsLegacy = Boolean(filters.placa) && !vehicles.some((vehicle) => vehicle.placa === filters.placa);
+  const formTypeIsLegacy = Boolean(form.tipo_despesa) && !movementTypes.some((type) => type === form.tipo_despesa);
 
   return (
     <main className="app-shell">
@@ -483,9 +517,17 @@ export default function VeiculosPage() {
                   <select
                     required
                     value={form.tipo_despesa}
-                    onChange={(event) => setForm({ ...form, tipo_despesa: event.target.value as MovementType | "" })}
+                    onChange={(event) => {
+                      const tipoDespesa = event.target.value as ExpenseType | "";
+                      setForm({
+                        ...form,
+                        tipo_despesa: tipoDespesa,
+                        tecnico_responsavel: tipoDespesa === "Multa" ? form.tecnico_responsavel : ""
+                      });
+                    }}
                   >
                     <option value="">Selecione</option>
+                    {formTypeIsLegacy ? <option value={form.tipo_despesa}>{form.tipo_despesa}</option> : null}
                     {movementTypes.map((type) => (
                       <option key={type} value={type}>
                         {type}
@@ -493,6 +535,24 @@ export default function VeiculosPage() {
                     ))}
                   </select>
                 </label>
+
+                {form.tipo_despesa === "Multa" ? (
+                  <label>
+                    Técnico responsável
+                    <select
+                      required
+                      value={form.tecnico_responsavel}
+                      onChange={(event) => setForm({ ...form, tecnico_responsavel: event.target.value })}
+                    >
+                      <option value="">Selecione</option>
+                      {funcionarios.map((funcionario) => (
+                        <option key={funcionario.id} value={funcionario.nome}>
+                          {funcionario.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
 
                 <label>
                   Valor
@@ -625,6 +685,21 @@ export default function VeiculosPage() {
                     </select>
                   </label>
 
+                  <label>
+                    Técnico responsável
+                    <select
+                      value={filters.tecnico_responsavel}
+                      onChange={(event) => setFilters({ ...filters, tecnico_responsavel: event.target.value })}
+                    >
+                      <option value="">Todos</option>
+                      {funcionarios.map((funcionario) => (
+                        <option key={funcionario.id} value={funcionario.nome}>
+                          {funcionario.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
                   <div className="button-row">
                     <button className="primary-button" type="submit">
                       Filtrar
@@ -651,6 +726,9 @@ export default function VeiculosPage() {
                           {record.data} | {record.tipo_despesa} | {formatCurrency(record.valor)}
                         </span>
                         <span>Fornecedor: {vehicleSupplier(record) || "Não informado"}</span>
+                        {record.tipo_despesa === "Multa" ? (
+                          <span>Técnico responsável: {record.tecnico_responsavel || "Não informado"}</span>
+                        ) : null}
                         <span>Quilometragem: {formatMileage(record.quilometragem)}</span>
                         {record.descricao ? <p>{record.descricao}</p> : null}
                         {record.observacao ? <p>{record.observacao}</p> : null}
@@ -690,6 +768,7 @@ function vehicleCsvRow(record: DespesaVeiculo, veiculo: string) {
     veiculo,
     fornecedor: vehicleSupplier(record),
     tipo_despesa: record.tipo_despesa,
+    tecnico_responsavel: record.tecnico_responsavel ?? "",
     valor: formatCurrency(record.valor),
     quilometragem: record.quilometragem ? String(record.quilometragem) : "",
     descricao: record.descricao ?? "",
@@ -751,6 +830,7 @@ function printPdfReport({
   placa,
   fornecedor,
   tipoDespesa,
+  tecnicoResponsavel,
   rows
 }: {
   title: string;
@@ -758,6 +838,7 @@ function printPdfReport({
   placa: string;
   fornecedor: string;
   tipoDespesa: string;
+  tecnicoResponsavel: string;
   rows: VehicleReportRow[];
 }) {
   const reportWindow = window.open("", "_blank", "width=900,height=700");
@@ -777,6 +858,7 @@ function printPdfReport({
               <td>${escapeHtml(row.veiculo_visual)}</td>
               <td>${escapeHtml(vehicleSupplier(row))}</td>
               <td>${escapeHtml(row.tipo_despesa)}</td>
+              <td>${escapeHtml(row.tipo_despesa === "Multa" ? `Técnico responsável: ${row.tecnico_responsavel ?? ""}` : "")}</td>
               <td>${escapeHtml(formatCurrency(row.valor))}</td>
               <td>${escapeHtml(formatMileage(row.quilometragem))}</td>
               <td>${escapeHtml(row.descricao ?? "")}</td>
@@ -785,7 +867,7 @@ function printPdfReport({
           `
         )
         .join("")
-    : '<tr><td colspan="9">Nenhum registro encontrado.</td></tr>';
+    : '<tr><td colspan="10">Nenhum registro encontrado.</td></tr>';
 
   reportWindow.document.write(`
     <!doctype html>
@@ -834,6 +916,7 @@ function printPdfReport({
         <p><strong>Placa filtrada:</strong> ${escapeHtml(placa)}</p>
         <p><strong>Fornecedor filtrado:</strong> ${escapeHtml(fornecedor)}</p>
         <p><strong>Tipo:</strong> ${escapeHtml(tipoDespesa)}</p>
+        <p><strong>Técnico responsável filtrado:</strong> ${escapeHtml(tecnicoResponsavel)}</p>
         <table>
           <thead>
             <tr>
@@ -842,6 +925,7 @@ function printPdfReport({
               <th>Veículo</th>
               <th>Fornecedor</th>
               <th>Tipo</th>
+              <th>Técnico responsável</th>
               <th>Valor</th>
               <th>Quilometragem</th>
               <th>Descrição</th>
