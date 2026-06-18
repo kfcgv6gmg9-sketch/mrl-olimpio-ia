@@ -1428,24 +1428,25 @@ export default function DiarioPage() {
                                   <span>Status: {movement.status_atendimento}</span>
                                   <p>Serviço: {movement.servico_realizado}</p>
                                   {movement.observacao ? <p>{movement.observacao}</p> : null}
+                                  {canManageVisit ? <span>Ações da visita</span> : null}
                                   {canManageVisit ? (
-                                    <div className="button-row">
-                                      <button
-                                        className="secondary-button"
-                                        onClick={() => handleEditMovement(movement)}
-                                        type="button"
-                                      >
-                                        Editar visita
-                                      </button>
-                                      <button
-                                        className="danger-button"
-                                        disabled={saving}
-                                        onClick={() => handleDeleteMovement(movement)}
-                                        type="button"
-                                      >
-                                        Excluir visita
-                                      </button>
-                                    </div>
+                                    <button
+                                      className="secondary-button"
+                                      onClick={() => handleEditMovement(movement)}
+                                      type="button"
+                                    >
+                                      Editar visita
+                                    </button>
+                                  ) : null}
+                                  {canManageVisit ? (
+                                    <button
+                                      className="danger-button visit-delete-button"
+                                      disabled={saving}
+                                      onClick={() => handleDeleteMovement(movement)}
+                                      type="button"
+                                    >
+                                      Excluir visita
+                                    </button>
                                   ) : null}
                                 </div>
                               );

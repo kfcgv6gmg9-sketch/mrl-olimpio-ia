@@ -360,6 +360,12 @@ select {
   color: #a12020;
 }
 
+.visit-delete-button {
+  display: block;
+  margin-top: 8px;
+  width: fit-content;
+}
+
 .error-text,
 .success-text {
   margin: 0;
