@@ -756,6 +756,72 @@ export default function DiarioPage() {
     setError("");
   }
 
+  async function handleDeleteMovement(movement: HistoryItem) {
+    if (movement.source !== "movimentacao") {
+      setError("A primeira movimentacao principal do atendimento nao pode ser excluida.");
+      setMessage("");
+      return;
+    }
+
+    const record = records.find((currentRecord) => currentRecord.id === movement.diario_id);
+
+    if (!record) {
+      setError("Atendimento da movimentacao nao encontrado.");
+      setMessage("");
+      return;
+    }
+
+    if (isDiarioLocked(record)) {
+      setError("Atendimento finalizado ou bloqueado nao permite excluir movimentacoes.");
+      setMessage("");
+      return;
+    }
+
+    const confirmed = window.confirm("Excluir esta visita do historico do atendimento?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const { error: deleteHelpersError } = await supabase
+      .from("diario_movimentacao_ajudantes")
+      .delete()
+      .eq("movimentacao_id", movement.id);
+
+    if (deleteHelpersError) {
+      setError(`Nao foi possivel excluir os ajudantes da visita: ${deleteHelpersError.message}`);
+      setSaving(false);
+      return;
+    }
+
+    const { error: deleteMovementError } = await supabase
+      .from("diario_movimentacoes")
+      .delete()
+      .eq("id", movement.id);
+
+    if (deleteMovementError) {
+      setError(deleteMovementError.message);
+      setSaving(false);
+      return;
+    }
+
+    await logAudit({
+      modulo: "Diário",
+      acao: "Excluir",
+      registro_afetado: movement.diario_id
+    });
+    setMovementForm((currentForm) =>
+      currentForm.movimentacao_id === movement.id ? initialMovimentacaoForm : currentForm
+    );
+    setMessage("Visita excluida.");
+    await loadRecords();
+    setSaving(false);
+  }
+
   function handleAgendaChange(agendamentoId: string) {
     const selectedAgenda = agendaRecords.find((record) => record.id === agendamentoId);
 
@@ -1348,28 +1414,42 @@ export default function DiarioPage() {
 
                           <div className="movement-list" aria-label="Historico do atendimento">
                             <h3>Histórico do Atendimento</h3>
-                            {recordHistory(record).map((movement) => (
-                              <div className="movement-item" key={movement.id}>
-                                <strong>
-                                  {movement.data} - {movement.tecnico}
-                                </strong>
-                                {movement.source === "movimentacao" && movementHelperNames(movement.id).length > 0 ? (
-                                  <span>Ajudantes: {movementHelperNames(movement.id).join(", ")}</span>
-                                ) : null}
-                                <span>Status: {movement.status_atendimento}</span>
-                                <p>Serviço: {movement.servico_realizado}</p>
-                                {movement.observacao ? <p>{movement.observacao}</p> : null}
-                                {movement.source === "movimentacao" && !locked ? (
-                                  <button
-                                    className="secondary-button"
-                                    onClick={() => handleEditMovement(movement)}
-                                    type="button"
-                                  >
-                                    Editar visita
-                                  </button>
-                                ) : null}
-                              </div>
-                            ))}
+                            {recordHistory(record).map((movement) => {
+                              const canManageVisit = movement.source === "movimentacao" && !locked;
+
+                              return (
+                                <div className="movement-item" key={movement.id}>
+                                  <strong>
+                                    {movement.data} - {movement.tecnico}
+                                  </strong>
+                                  {movement.source === "movimentacao" && movementHelperNames(movement.id).length > 0 ? (
+                                    <span>Ajudantes: {movementHelperNames(movement.id).join(", ")}</span>
+                                  ) : null}
+                                  <span>Status: {movement.status_atendimento}</span>
+                                  <p>Serviço: {movement.servico_realizado}</p>
+                                  {movement.observacao ? <p>{movement.observacao}</p> : null}
+                                  {canManageVisit ? (
+                                    <div className="button-row">
+                                      <button
+                                        className="secondary-button"
+                                        onClick={() => handleEditMovement(movement)}
+                                        type="button"
+                                      >
+                                        Editar visita
+                                      </button>
+                                      <button
+                                        className="danger-button"
+                                        disabled={saving}
+                                        onClick={() => handleDeleteMovement(movement)}
+                                        type="button"
+                                      >
+                                        Excluir visita
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                         <div className="button-row">
