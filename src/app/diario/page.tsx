@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { AuthGate } from "@/components/AuthGate";
 import { PermissionGate } from "@/components/PermissionGate";
@@ -122,7 +122,7 @@ function agendaLabel(record: AgendaServico) {
   const city = record.cidade ? ` | ${record.cidade}` : "";
   const status = record.status_agendamento ? ` | ${record.status_agendamento}` : "";
 
-  return `${record.data} | ${record.cliente}${city}${status}`;
+  return `${record.cliente} - ${record.data}${city}${status} - ID: ${record.id}`;
 }
 
 function principalHistoryItem(record: DiarioOperacional): HistoryItem {
@@ -234,6 +234,7 @@ export default function DiarioPage() {
   const [records, setRecords] = useState<DiarioOperacional[]>([]);
   const [movements, setMovements] = useState<DiarioMovimentacao[]>([]);
   const [agendaRecords, setAgendaRecords] = useState<AgendaServico[]>([]);
+  const [lockedLinkedAgendaIds, setLockedLinkedAgendaIds] = useState<string[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [ajudantes, setAjudantes] = useState<DiarioAjudante[]>([]);
   const [movementHelpers, setMovementHelpers] = useState<DiarioMovimentacaoAjudante[]>([]);
@@ -250,20 +251,25 @@ export default function DiarioPage() {
   const { email, loading: accessLoading, metadata } = useCurrentAccess();
   const canAccessDiario = canAccessModule(email, metadata, "diario");
 
-  useEffect(() => {
-    if (!accessLoading && canAccessDiario) {
-      loadRecords();
+  const blockAgendaRecords = useCallback(async (agendaIds: string[]) => {
+    if (agendaIds.length === 0) {
+      return { error: null };
     }
-  }, [accessLoading, canAccessDiario]);
 
-  async function loadRecords() {
+    return supabase
+      .from("agenda_servicos")
+      .update({ bloqueado: true, status_agendamento: "Cancelado" })
+      .in("id", agendaIds);
+  }, []);
+
+  const loadRecords = useCallback(async () => {
     setLoading(true);
     setError("");
 
     const [
       diarioResponse,
       movementResponse,
-      agendaResponse,
+      lockedLinkedAgendaResponse,
       funcionariosResponse,
       ajudantesResponse,
       movementHelpersResponse
@@ -279,10 +285,10 @@ export default function DiarioPage() {
         .order("data", { ascending: true })
         .order("created_at", { ascending: true }),
       supabase
-        .from("agenda_servicos")
-        .select("*")
-        .order("data", { ascending: false })
-        .order("created_at", { ascending: false }),
+        .from("diario_operacional")
+        .select("agendamento_id,status_atendimento,bloqueado")
+        .not("agendamento_id", "is", null)
+        .or("status_atendimento.eq.Finalizado,bloqueado.eq.true"),
       supabase
         .from("funcionarios")
         .select("*")
@@ -309,8 +315,34 @@ export default function DiarioPage() {
       setMovements(movementResponse.data ?? []);
     }
 
+    let lockedAgendaIds: string[] = [];
+    if (lockedLinkedAgendaResponse.error) {
+      setError((currentError) => currentError || lockedLinkedAgendaResponse.error.message);
+      setLockedLinkedAgendaIds([]);
+    } else {
+      lockedAgendaIds = (lockedLinkedAgendaResponse.data ?? [])
+        .map((record) => record.agendamento_id)
+        .filter((agendaId): agendaId is string => Boolean(agendaId));
+
+      lockedAgendaIds = Array.from(new Set(lockedAgendaIds));
+      setLockedLinkedAgendaIds(lockedAgendaIds);
+
+      const { error: agendaSyncError } = await blockAgendaRecords(lockedAgendaIds);
+
+      if (agendaSyncError) {
+        setError((currentError) => currentError || agendaSyncError.message);
+      }
+    }
+
+    const agendaResponse = await supabase
+      .from("agenda_servicos")
+      .select("*")
+      .order("data", { ascending: false })
+      .order("created_at", { ascending: false });
+
     if (agendaResponse.error) {
       setError((currentError) => currentError || agendaResponse.error.message);
+      setAgendaRecords([]);
     } else {
       setAgendaRecords(agendaResponse.data ?? []);
     }
@@ -337,7 +369,13 @@ export default function DiarioPage() {
     }
 
     setLoading(false);
-  }
+  }, [blockAgendaRecords]);
+
+  useEffect(() => {
+    if (!accessLoading && canAccessDiario) {
+      loadRecords();
+    }
+  }, [accessLoading, canAccessDiario, loadRecords]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -446,10 +484,7 @@ export default function DiarioPage() {
     }
 
     if (payload.status_atendimento === "Finalizado" && payload.agendamento_id) {
-      const { error: agendaError } = await supabase
-        .from("agenda_servicos")
-        .update({ bloqueado: true })
-        .eq("id", payload.agendamento_id);
+      const { error: agendaError } = await blockAgendaRecords([payload.agendamento_id]);
 
       if (agendaError) {
         setError(`Registro salvo, mas nao foi possivel bloquear o agendamento: ${agendaError.message}`);
@@ -602,10 +637,7 @@ export default function DiarioPage() {
       }
 
       if (record.agendamento_id) {
-        const { error: agendaError } = await supabase
-          .from("agenda_servicos")
-          .update({ bloqueado: true })
-          .eq("id", record.agendamento_id);
+        const { error: agendaError } = await blockAgendaRecords([record.agendamento_id]);
 
         if (agendaError) {
           setError(`Atendimento finalizado, mas nao foi possivel bloquear o agendamento: ${agendaError.message}`);
@@ -996,6 +1028,14 @@ export default function DiarioPage() {
   );
   const selectedMovementHelperNames = movementForm.ajudantes.map((funcionarioId) => funcionarioName(funcionarioId));
   const activeFuncionarioOptions = [...funcionarios].sort((first, second) => first.nome.localeCompare(second.nome));
+  const lockedLinkedAgendaIdSet = new Set(lockedLinkedAgendaIds);
+  const availableAgendaRecords = agendaRecords.filter((agenda) => {
+    if (agenda.id === form.agendamento_id && editingId) {
+      return true;
+    }
+
+    return agenda.bloqueado !== true && !lockedLinkedAgendaIdSet.has(agenda.id);
+  });
   const recordsFilteredByTecnicoAndSearch = records.filter(
     (record) => recordMatchesTecnicoFilter(record, diarioTecnicoFilter) && recordMatchesSearch(record, diarioSearch)
   );
@@ -1139,7 +1179,7 @@ export default function DiarioPage() {
                       onChange={(event) => handleAgendaChange(event.target.value)}
                     >
                       <option value="">Sem agendamento vinculado</option>
-                      {agendaRecords.map((record) => (
+                      {availableAgendaRecords.map((record) => (
                         <option key={record.id} value={record.id}>
                           {agendaLabel(record)}
                         </option>
