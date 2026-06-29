@@ -54,6 +54,7 @@ type HistoryItem = {
 };
 
 type DiarioQuickFilter = "Todos" | "Em andamento" | "Finalizados";
+type DiarioPeriodFilter = "Todos" | "Hoje" | "Ontem" | "Esta semana";
 
 const initialMovimentacaoForm: MovimentacaoForm = {
   movimentacao_id: "",
@@ -178,6 +179,20 @@ function funcionarioMatchesTecnico(funcionario: Funcionario, tecnico: string) {
   return funcionario.nome.trim().toLowerCase() === tecnico.trim().toLowerCase();
 }
 
+function funcionarioFuncao(funcionario: Funcionario) {
+  return funcionario.funcao ?? "Técnico";
+}
+
+function isTecnicoFuncionario(funcionario: Funcionario) {
+  return funcionarioFuncao(funcionario) === "Técnico";
+}
+
+function funcionarioOptionLabel(funcionario: Funcionario) {
+  const prefix = funcionarioFuncao(funcionario) === "Auxiliar" ? "AUX" : "TEC";
+
+  return `${prefix} - ${funcionario.nome}`;
+}
+
 function filterDiarioRecordsByQuickStatus(records: DiarioOperacional[], filter: DiarioQuickFilter) {
   if (filter === "Em andamento") {
     return records.filter((record) => record.status_atendimento === "Em andamento");
@@ -185,6 +200,60 @@ function filterDiarioRecordsByQuickStatus(records: DiarioOperacional[], filter: 
 
   if (filter === "Finalizados") {
     return records.filter((record) => record.status_atendimento === "Finalizado");
+  }
+
+  return records;
+}
+
+function formatDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function currentWeekRange() {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(today);
+  const sunday = new Date(today);
+
+  monday.setDate(today.getDate() + mondayOffset);
+  sunday.setDate(monday.getDate() + 6);
+
+  return {
+    start: formatDateInputValue(monday),
+    end: formatDateInputValue(sunday)
+  };
+}
+
+function dateDaysAgo(days: number) {
+  const date = new Date();
+
+  date.setDate(date.getDate() - days);
+
+  return formatDateInputValue(date);
+}
+
+function filterDiarioRecordsByPeriod(records: DiarioOperacional[], filter: DiarioPeriodFilter) {
+  if (filter === "Hoje") {
+    const today = dateDaysAgo(0);
+
+    return records.filter((record) => record.data === today);
+  }
+
+  if (filter === "Ontem") {
+    const yesterday = dateDaysAgo(1);
+
+    return records.filter((record) => record.data === yesterday);
+  }
+
+  if (filter === "Esta semana") {
+    const { start, end } = currentWeekRange();
+
+    return records.filter((record) => record.data >= start && record.data <= end);
   }
 
   return records;
@@ -242,6 +311,7 @@ export default function DiarioPage() {
   const [movementForm, setMovementForm] = useState<MovimentacaoForm>(initialMovimentacaoForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [diarioQuickFilter, setDiarioQuickFilter] = useState<DiarioQuickFilter>("Todos");
+  const [diarioPeriodFilter, setDiarioPeriodFilter] = useState<DiarioPeriodFilter>("Todos");
   const [diarioTecnicoFilter, setDiarioTecnicoFilter] = useState("");
   const [diarioSearch, setDiarioSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -326,12 +396,6 @@ export default function DiarioPage() {
 
       lockedAgendaIds = Array.from(new Set(lockedAgendaIds));
       setLockedLinkedAgendaIds(lockedAgendaIds);
-
-      const { error: agendaSyncError } = await blockAgendaRecords(lockedAgendaIds);
-
-      if (agendaSyncError) {
-        setError((currentError) => currentError || agendaSyncError.message);
-      }
     }
 
     const agendaResponse = await supabase
@@ -369,7 +433,7 @@ export default function DiarioPage() {
     }
 
     setLoading(false);
-  }, [blockAgendaRecords]);
+  }, []);
 
   useEffect(() => {
     if (!accessLoading && canAccessDiario) {
@@ -515,6 +579,7 @@ export default function DiarioPage() {
 
   async function handleAddMovement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    event.stopPropagation();
     setSaving(true);
     setMessage("");
     setError("");
@@ -533,14 +598,14 @@ export default function DiarioPage() {
       return;
     }
 
-    const status = movementForm.status_atendimento || "Aberto";
+    const visitStatus = movementForm.status_atendimento || "Aberto";
     const movementPayload = {
       diario_id: movementForm.diario_id,
       data: movementForm.data,
       tecnico: movementForm.tecnico.trim(),
       servico_realizado: movementForm.servico_realizado.trim(),
       observacao: movementForm.observacao.trim() || null,
-      status_atendimento: status
+      status_atendimento: visitStatus
     };
     const movementResponse = movementForm.movimentacao_id
       ? await supabase
@@ -599,62 +664,13 @@ export default function DiarioPage() {
       }
     }
 
-    const { data: updatedRecord, error: updateStatusError } = await supabase
-      .from("diario_operacional")
-      .update({
-        status_atendimento: status,
-        bloqueado: status === "Finalizado"
-      })
-      .eq("id", movementForm.diario_id)
-      .select("id,status_atendimento,bloqueado")
-      .single();
-
-    if (updateStatusError) {
-      setError(`Movimentacao salva, mas nao foi possivel atualizar o status do atendimento: ${updateStatusError.message}`);
-      await loadRecords();
-      setSaving(false);
-      return;
-    }
-
-    if (
-      status === "Finalizado" &&
-      (updatedRecord?.status_atendimento !== "Finalizado" || updatedRecord.bloqueado !== true)
-    ) {
-      setError("Movimentacao salva, mas o atendimento principal nao foi confirmado como finalizado e bloqueado.");
-      await loadRecords();
-      setSaving(false);
-      return;
-    }
-
-    if (status === "Finalizado") {
-      const { error: movementsStatusError } = await finalizeDiarioMovements(movementForm.diario_id);
-
-      if (movementsStatusError) {
-        setError(`Atendimento finalizado, mas nao foi possivel finalizar as movimentacoes: ${movementsStatusError.message}`);
-        await loadRecords();
-        setSaving(false);
-        return;
-      }
-
-      if (record.agendamento_id) {
-        const { error: agendaError } = await blockAgendaRecords([record.agendamento_id]);
-
-        if (agendaError) {
-          setError(`Atendimento finalizado, mas nao foi possivel bloquear o agendamento: ${agendaError.message}`);
-          await loadRecords();
-          setSaving(false);
-          return;
-        }
-      }
-    }
-
     await logAudit({
       modulo: "Diário",
-      acao: status === "Finalizado" ? "Finalizar" : status === "Cancelado" ? "Cancelar" : movementForm.movimentacao_id ? "Editar" : "Criar",
+      acao: visitStatus === "Cancelado" ? "Cancelar" : movementForm.movimentacao_id ? "Editar" : "Criar",
       registro_afetado: movementForm.diario_id
     });
     setMovementForm(initialMovimentacaoForm);
-    setMessage(status === "Finalizado" ? "Atendimento finalizado." : movementForm.movimentacao_id ? "Movimentacao atualizada." : "Movimentacao adicionada.");
+    setMessage(movementForm.movimentacao_id ? "Movimentacao atualizada." : "Movimentacao adicionada.");
     await loadRecords();
     setSaving(false);
   }
@@ -936,6 +952,12 @@ export default function DiarioPage() {
     return funcionarios.find((funcionario) => funcionario.id === funcionarioId)?.nome ?? funcionarioId;
   }
 
+  function funcionarioLabel(funcionarioId: string) {
+    const funcionario = funcionarios.find((currentFuncionario) => currentFuncionario.id === funcionarioId);
+
+    return funcionario ? funcionarioOptionLabel(funcionario) : funcionarioId;
+  }
+
   function recordHelpers(recordId: string) {
     return ajudantes.filter((helper) => helper.diario_id === recordId);
   }
@@ -1017,7 +1039,7 @@ export default function DiarioPage() {
 
   const tecnicoOptions = Array.from(
     new Set([
-      ...funcionarios.map((funcionario) => funcionario.nome),
+      ...funcionarios.filter(isTecnicoFuncionario).map((funcionario) => funcionario.nome),
       form.tecnico,
       movementForm.tecnico
     ].filter(Boolean))
@@ -1026,7 +1048,7 @@ export default function DiarioPage() {
   const movementHelperOptions = funcionarios.filter(
     (funcionario) => !funcionarioMatchesTecnico(funcionario, movementForm.tecnico)
   );
-  const selectedMovementHelperNames = movementForm.ajudantes.map((funcionarioId) => funcionarioName(funcionarioId));
+  const selectedMovementHelperLabels = movementForm.ajudantes.map((funcionarioId) => funcionarioLabel(funcionarioId));
   const activeFuncionarioOptions = [...funcionarios].sort((first, second) => first.nome.localeCompare(second.nome));
   const lockedLinkedAgendaIdSet = new Set(lockedLinkedAgendaIds);
   const availableAgendaRecords = agendaRecords.filter((agenda) => {
@@ -1036,11 +1058,14 @@ export default function DiarioPage() {
 
     return agenda.bloqueado !== true && !lockedLinkedAgendaIdSet.has(agenda.id);
   });
-  const recordsFilteredByTecnicoAndSearch = records.filter(
-    (record) => recordMatchesTecnicoFilter(record, diarioTecnicoFilter) && recordMatchesSearch(record, diarioSearch)
+  const recordsFilteredByTecnicoSearchAndPeriod = filterDiarioRecordsByPeriod(
+    records.filter(
+      (record) => recordMatchesTecnicoFilter(record, diarioTecnicoFilter) && recordMatchesSearch(record, diarioSearch)
+    ),
+    diarioPeriodFilter
   );
   const visibleRecords = sortDiarioRecords(
-    filterDiarioRecordsByQuickStatus(recordsFilteredByTecnicoAndSearch, diarioQuickFilter)
+    filterDiarioRecordsByQuickStatus(recordsFilteredByTecnicoSearchAndPeriod, diarioQuickFilter)
   );
   const totalRecords = visibleRecords.length;
   const inProgressRecords = visibleRecords.filter((record) => record.status_atendimento === "Em andamento").length;
@@ -1099,7 +1124,7 @@ export default function DiarioPage() {
                     >
                       {ajudanteOptions.map((funcionario) => (
                         <option key={funcionario.id} value={funcionario.id}>
-                          {funcionario.nome}
+                          {funcionarioOptionLabel(funcionario)}
                         </option>
                       ))}
                     </select>
@@ -1281,15 +1306,15 @@ export default function DiarioPage() {
                               onChange={() => toggleMovementHelper(funcionario.id)}
                               type="checkbox"
                             />
-                            {funcionario.nome}
+                            {funcionarioOptionLabel(funcionario)}
                           </label>
                         ))}
                       </div>
-                      {selectedMovementHelperNames.length > 0 ? (
+                      {selectedMovementHelperLabels.length > 0 ? (
                         <div className="selected-chip-list">
-                          {selectedMovementHelperNames.map((name) => (
-                            <span className="selected-chip" key={name}>
-                              {name}
+                          {selectedMovementHelperLabels.map((label) => (
+                            <span className="selected-chip" key={label}>
+                              {label}
                             </span>
                           ))}
                         </div>
@@ -1376,6 +1401,16 @@ export default function DiarioPage() {
                     <button className="secondary-button" onClick={loadRecords} type="button">
                       Atualizar
                     </button>
+                    {(["Hoje", "Ontem", "Esta semana", "Todos"] as DiarioPeriodFilter[]).map((filter) => (
+                      <button
+                        className={diarioPeriodFilter === filter ? "quick-filter-button active" : "quick-filter-button"}
+                        key={filter}
+                        onClick={() => setDiarioPeriodFilter(filter)}
+                        type="button"
+                      >
+                        {filter}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -1435,7 +1470,7 @@ export default function DiarioPage() {
                             {normalizeFormSituation(record.situacao_atendimento ?? linkedAgenda?.situacao_agendamento)}
                           </span>
                           <span className={statusBadgeClass(record.status_atendimento)}>
-                            Status: {record.status_atendimento ?? "Nao informado"}
+                            Status geral: {record.status_atendimento ?? "Nao informado"}
                           </span>
                           {recordHelpers(record.id).length > 0 ? (
                             <span>
@@ -1465,7 +1500,10 @@ export default function DiarioPage() {
                                   {movement.source === "movimentacao" && movementHelperNames(movement.id).length > 0 ? (
                                     <span>Ajudantes: {movementHelperNames(movement.id).join(", ")}</span>
                                   ) : null}
-                                  <span>Status: {movement.status_atendimento}</span>
+                                  <span>
+                                    {movement.source === "principal" ? "Status inicial" : "Status da visita"}:{" "}
+                                    {movement.status_atendimento}
+                                  </span>
                                   <p>Serviço: {movement.servico_realizado}</p>
                                   {movement.observacao ? <p>{movement.observacao}</p> : null}
                                   {canManageVisit ? <span>Ações da visita</span> : null}
