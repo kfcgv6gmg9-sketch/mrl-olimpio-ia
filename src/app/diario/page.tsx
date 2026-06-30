@@ -183,10 +183,6 @@ function funcionarioFuncao(funcionario: Funcionario) {
   return funcionario.funcao ?? "Técnico";
 }
 
-function isTecnicoFuncionario(funcionario: Funcionario) {
-  return funcionarioFuncao(funcionario) === "Técnico";
-}
-
 function funcionarioOptionLabel(funcionario: Funcionario) {
   const prefix = funcionarioFuncao(funcionario) === "Auxiliar" ? "AUX" : "TEC";
 
@@ -1037,19 +1033,23 @@ export default function DiarioPage() {
     });
   }
 
-  const tecnicoOptions = Array.from(
-    new Set([
-      ...funcionarios.filter(isTecnicoFuncionario).map((funcionario) => funcionario.nome),
-      form.tecnico,
-      movementForm.tecnico
-    ].filter(Boolean))
+  const activeFuncionarioOptions = [...funcionarios].sort((first, second) => first.nome.localeCompare(second.nome));
+  const tecnicoOptionMap = new Map(
+    activeFuncionarioOptions.map((funcionario) => [funcionario.nome, funcionarioOptionLabel(funcionario)])
   );
+
+  [form.tecnico, movementForm.tecnico].filter(Boolean).forEach((tecnico) => {
+    if (!tecnicoOptionMap.has(tecnico)) {
+      tecnicoOptionMap.set(tecnico, tecnico);
+    }
+  });
+
+  const tecnicoOptions = Array.from(tecnicoOptionMap, ([value, label]) => ({ value, label }));
   const ajudanteOptions = funcionarios.filter((funcionario) => !funcionarioMatchesTecnico(funcionario, form.tecnico));
   const movementHelperOptions = funcionarios.filter(
     (funcionario) => !funcionarioMatchesTecnico(funcionario, movementForm.tecnico)
   );
   const selectedMovementHelperLabels = movementForm.ajudantes.map((funcionarioId) => funcionarioLabel(funcionarioId));
-  const activeFuncionarioOptions = [...funcionarios].sort((first, second) => first.nome.localeCompare(second.nome));
   const lockedLinkedAgendaIdSet = new Set(lockedLinkedAgendaIds);
   const availableAgendaRecords = agendaRecords.filter((agenda) => {
     if (agenda.id === form.agendamento_id && editingId) {
@@ -1108,8 +1108,8 @@ export default function DiarioPage() {
                     >
                       <option value="">Selecione</option>
                       {tecnicoOptions.map((tecnico) => (
-                        <option key={tecnico} value={tecnico}>
-                          {tecnico}
+                        <option key={tecnico.value} value={tecnico.value}>
+                          {tecnico.label}
                         </option>
                       ))}
                     </select>
@@ -1286,8 +1286,8 @@ export default function DiarioPage() {
                       >
                         <option value="">Selecione</option>
                         {tecnicoOptions.map((tecnico) => (
-                          <option key={tecnico} value={tecnico}>
-                            {tecnico}
+                          <option key={tecnico.value} value={tecnico.value}>
+                            {tecnico.label}
                           </option>
                         ))}
                       </select>
