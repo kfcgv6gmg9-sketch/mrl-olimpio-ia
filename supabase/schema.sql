@@ -96,6 +96,39 @@ create table if not exists public.auditoria (
 );
 
 -- =========================
+-- FUNCOES DOS FUNCIONARIOS
+-- =========================
+alter table if exists public.funcionarios
+add column if not exists funcao text check (
+  funcao in ('Técnico', 'Auxiliar')
+  or funcao is null
+);
+
+update public.funcionarios
+set funcao = 'Técnico'
+where lower(nome) in (
+  'murilo',
+  'reginaldo',
+  'fernando',
+  'leonardo',
+  'leandro',
+  'rodrigo'
+);
+
+update public.funcionarios
+set funcao = 'Auxiliar'
+where lower(nome) in (
+  'kauan',
+  'yan',
+  'pedro',
+  'fernando mendes',
+  'reginaldo antonio',
+  'hugo',
+  'irineu',
+  'robinson'
+);
+
+-- =========================
 -- CADASTRO DE VEÍCULOS
 -- =========================
 create table if not exists public.veiculos (
@@ -187,7 +220,7 @@ select
   movimentacoes.tecnico,
   diario.cliente,
   movimentacoes.servico_realizado,
-  movimentacoes.status_atendimento as situacao_atendimento,
+  diario.status_atendimento as situacao_atendimento,
   movimentacoes.observacao
 from public.diario_movimentacoes movimentacoes
 join public.diario_operacional diario on diario.id = movimentacoes.diario_id

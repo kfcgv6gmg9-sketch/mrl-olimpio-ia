@@ -56,6 +56,7 @@ export type DiarioMovimentacao = {
 export type Funcionario = {
   id: string;
   nome: string;
+  funcao: "Técnico" | "Auxiliar" | null;
   ativo: boolean | null;
   created_at?: string;
   updated_at?: string;
